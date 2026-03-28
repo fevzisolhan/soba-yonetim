@@ -1,0 +1,54 @@
+import { useEffect, type ReactNode } from 'react';
+
+interface ModalProps {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  maxWidth?: number;
+}
+
+export function Modal({ open, onClose, title, children, maxWidth = 560 }: ModalProps) {
+  useEffect(() => {
+    if (open) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflowY: 'auto',
+        background: 'rgba(5,10,20,0.75)', backdropFilter: 'blur(8px)',
+        animation: 'fadeIn 0.18s ease',
+      }}
+    >
+      <div style={{
+        background: 'linear-gradient(160deg, #0f1e35 0%, #0c1628 100%)',
+        borderRadius: 18, width: '100%', maxWidth,
+        border: '1px solid rgba(255,255,255,0.09)',
+        boxShadow: '0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)',
+        maxHeight: '90vh', overflowY: 'auto',
+        animation: 'slideUp 0.2s ease',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <h3 style={{ fontWeight: 800, fontSize: '1.05rem', color: '#f1f5f9', letterSpacing: '-0.01em' }}>{title}</h3>
+          <button
+            onClick={onClose}
+            style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b', cursor: 'pointer', width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', transition: 'all 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; }}
+          >×</button>
+        </div>
+        <div style={{ padding: '20px 24px' }}>{children}</div>
+      </div>
+      <style>{`
+        @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
+    </div>
+  );
+}
