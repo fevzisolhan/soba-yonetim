@@ -820,7 +820,7 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
   const detectFieldMappings = (data: Record<string, unknown>) => {
     const unknown: string[] = [];
     const autoMapped: Record<string, string> = {};
-    const knownAll = new Set([...Object.keys(KNOWN_ARRAYS), '_version', 'company', 'settings', 'pelletSettings', 'kasalar', 'matchRules', 'monitorRules', 'monitorLog', '_activityLog', 'soundSettings']);
+    const knownAll = new Set([...Object.keys(KNOWN_ARRAYS), '_version', 'company', 'settings', 'pelletSettings', 'kasalar', 'matchRules', 'monitorRules', 'monitorLog', '_activityLog', 'soundSettings', '_updatedAt', '_lastAutoBackup', '_createdAt', '_syncedAt', 'pin', 'versiyon', 'tarih']);
 
     Object.keys(data).forEach(key => {
       if (!knownAll.has(key)) {
@@ -843,6 +843,8 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
         } else if (Array.isArray(result[dst]) && Array.isArray(result[src])) {
           result[dst] = [...(result[dst] as unknown[]), ...(result[src] as unknown[])];
         }
+        delete result[src];
+      } else if ((!dst || dst === '') && result[src] !== undefined) {
         delete result[src];
       }
     });
