@@ -125,8 +125,10 @@ export default function Sales({ db, save }: Props) {
           return { ...p, stock: p.stock + item.quantity };
         });
         const sales = prev.sales.map(s => s.id === id ? { ...s, status: 'iade' as const, returnedAt: nowIso, updatedAt: nowIso } : s);
+        // Fix: iade orijinal ödeme kanalına gitsin (kart/havale → banka, nakit → nakit)
+        const iadeKasa = (sale.payment === 'kart' || sale.payment === 'havale') ? 'banka' : 'nakit';
         const kasaEntry = {
-          id: genId(), type: 'gider' as const, category: 'iade', amount: sale.total, kasa: 'nakit',
+          id: genId(), type: 'gider' as const, category: 'iade', amount: sale.total, kasa: iadeKasa,
           description: `İade: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
         };
         return { ...prev, sales, products, kasa: [...prev.kasa, kasaEntry] };

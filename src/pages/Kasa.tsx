@@ -25,8 +25,7 @@ export default function Kasa({ db, save }: Props) {
   const bakiyeler = useMemo(() => {
     const map: Record<string, number> = {};
     kasalar.forEach(k => map[k.id] = 0);
-    db.kasa.forEach(e => {
-      if (!map[e.kasa] !== undefined) map[e.kasa] = map[e.kasa] || 0;
+    db.kasa.filter(e => !e.deleted).forEach(e => {
       map[e.kasa] = (map[e.kasa] || 0) + (e.type === 'gelir' ? e.amount : -e.amount);
     });
     return map;
@@ -34,7 +33,7 @@ export default function Kasa({ db, save }: Props) {
 
   const totalBakiye = Object.values(bakiyeler).reduce((s, v) => s + v, 0);
 
-  let entries = db.kasa;
+  let entries = db.kasa.filter(e => !e.deleted);
   if (filter === 'gelir') entries = entries.filter(e => e.type === 'gelir');
   else if (filter === 'gider') entries = entries.filter(e => e.type === 'gider');
   if (kasaFilter !== 'all') entries = entries.filter(e => e.kasa === kasaFilter);
@@ -66,7 +65,8 @@ export default function Kasa({ db, save }: Props) {
 
   const deleteEntry = (id: string) => {
     showConfirm('Kaydı Sil', 'Bu kasa kaydını silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, kasa: prev.kasa.filter(e => e.id !== id) }));
+      // Fix: soft-delete — finansal kayıtlar fiziksel silinmez
+      save(prev => ({ ...prev, kasa: prev.kasa.map(e => e.id === id ? { ...e, deleted: true } : e) }));
       showToast('Kayıt silindi!', 'success');
     });
   };

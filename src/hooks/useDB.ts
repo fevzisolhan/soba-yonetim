@@ -43,6 +43,7 @@ function makeDefaultDB(): DB {
     company: { id: genId(), createdAt: nowIso },
     settings: {},
     pelletSettings: { gramaj: 14, kgFiyat: 6.5, cuvalKg: 15, critDays: 3 },
+    partners: [],
     ortakEmanetler: [],
     installments: [],
   };
@@ -77,6 +78,7 @@ function loadFromStorage(): DB {
     if (!Array.isArray(merged.budgets)) merged.budgets = [];
     if (!Array.isArray(merged.returns)) merged.returns = [];
     if (!Array.isArray(merged._activityLog)) merged._activityLog = [];
+    if (!Array.isArray(merged.partners)) merged.partners = [];
     if (!Array.isArray(merged.ortakEmanetler)) merged.ortakEmanetler = [];
     if (!Array.isArray(merged.installments)) merged.installments = [];
     return merged;
@@ -94,8 +96,9 @@ function saveToStorage(db: DB): boolean {
   _isSaving = true;
   _lastSaveTime = now;
   try {
-    db._version = (db._version || 0) + 1;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    // Fix: versiyonu mutasyon yerine spread ile artır
+    const toSave = { ...db, _version: (db._version || 0) + 1 };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     return true;
   } catch {
     return false;
@@ -192,9 +195,15 @@ export function useDB() {
       reader.onload = (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
-          setDb(data);
-          saveToStorage(data);
-          saveToFirebase(data);
+          // Fix: temel alan kontrolü — bozuk dosya import edilmesin
+          if (typeof data !== 'object' || Array.isArray(data) || !Array.isArray(data.products)) {
+            resolve(false);
+            return;
+          }
+          const merged = { ...makeDefaultDB(), ...data };
+          setDb(merged);
+          saveToStorage(merged);
+          saveToFirebase(merged);
           resolve(true);
         } catch {
           resolve(false);
@@ -205,13 +214,15 @@ export function useDB() {
   }, []);
 
   const getKasaBakiye = useCallback((kasaId: string) => {
-    return db.kasa.filter(k => k.kasa === kasaId).reduce((sum, k) => {
-      return sum + (k.type === 'gelir' ? k.amount : -k.amount);
-    }, 0);
+    return db.kasa
+      .filter(k => k.kasa === kasaId && !k.deleted)
+      .reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
   }, [db.kasa]);
 
   const getTotalKasa = useCallback(() => {
-    return db.kasa.reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    return db.kasa
+      .filter(k => !k.deleted)
+      .reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
   }, [db.kasa]);
 
   return { db, save, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa };
