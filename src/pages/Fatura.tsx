@@ -45,7 +45,7 @@ export default function Fatura({ db, save }: Props) {
   });
 
   const invoices = useMemo(() => {
-    let list = [...(db.invoices || [])];
+    let list = (db.invoices || []).filter(i => !i.deleted);
     if (filter !== 'all') list = list.filter(i => i.type === filter);
     if (statusFilter !== 'all') list = list.filter(i => i.status === statusFilter);
     if (search) { const q = search.toLowerCase(); list = list.filter(i => i.invoiceNo.toLowerCase().includes(q) || i.cariName.toLowerCase().includes(q)); }
@@ -53,7 +53,7 @@ export default function Fatura({ db, save }: Props) {
   }, [db.invoices, filter, statusFilter, search]);
 
   const stats = useMemo(() => {
-    const all = db.invoices || [];
+    const all = (db.invoices || []).filter(i => !i.deleted);
     const satisTotal = all.filter(i => i.type === 'satis' && i.status !== 'iptal').reduce((s, i) => s + i.total, 0);
     const alisTotal = all.filter(i => i.type === 'alis' && i.status !== 'iptal').reduce((s, i) => s + i.total, 0);
     const unpaid = all.filter(i => i.status === 'onaylandi').reduce((s, i) => s + i.total, 0);
@@ -155,7 +155,8 @@ export default function Fatura({ db, save }: Props) {
       }
 
       if (status === 'iptal' && inv.kasaEntryId) {
-        kasa = kasa.filter(k => k.id !== inv.kasaEntryId);
+        // Fix: soft-delete — kasa kaydını fiziksel silme
+        kasa = kasa.map(k => k.id === inv.kasaEntryId ? { ...k, deleted: true } : k);
         kasaEntryId = undefined;
       }
 
@@ -166,8 +167,9 @@ export default function Fatura({ db, save }: Props) {
   };
 
   const deleteInvoice = (id: string) => {
-    showConfirm('Fatura Sil', 'Bu fatura kalıcı olarak silinecek!', () => {
-      save(prev => ({ ...prev, invoices: (prev.invoices || []).filter(i => i.id !== id) }));
+    showConfirm('Fatura Sil', 'Bu fatura silinecek!', () => {
+      // Fix: soft-delete — fatura finansal kayıttır, fiziksel silinmez
+      save(prev => ({ ...prev, invoices: (prev.invoices || []).map(i => i.id === id ? { ...i, deleted: true, updatedAt: new Date().toISOString() } : i) }));
       showToast('Silindi!');
     });
   };

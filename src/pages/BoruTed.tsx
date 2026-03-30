@@ -52,7 +52,8 @@ export default function BoruTed({ db, save }: Props) {
 
   const deleteSupplier = (id: string) => {
     showConfirm('Sil', 'Emin misiniz?', () => {
-      save(prev => ({ ...prev, boruSuppliers: prev.boruSuppliers.filter(s => s.id !== id) }));
+      // Fix: soft-delete
+      save(prev => ({ ...prev, boruSuppliers: prev.boruSuppliers.map(s => s.id === id ? { ...s, deleted: true, updatedAt: new Date().toISOString() } : s) }));
       showToast('Silindi!');
     });
   };
@@ -69,7 +70,7 @@ export default function BoruTed({ db, save }: Props) {
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
         {[
-          { label: 'Tedarikçi', value: String(db.boruSuppliers.length), color: '#3b82f6' },
+          { label: 'Tedarikçi', value: String(db.boruSuppliers.filter(s => !s.deleted).length), color: '#3b82f6' },
           { label: 'Toplam Sipariş', value: String(db.boruOrders.length), color: '#10b981' },
           { label: 'Bekl. Sipariş', value: String(db.boruOrders.filter(o => o.status === 'bekliyor').length), color: '#f59e0b' },
         ].map(s => (
@@ -94,11 +95,11 @@ export default function BoruTed({ db, save }: Props) {
 
       {tab === 'suppliers' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px,1fr))', gap: 14 }}>
-          {db.boruSuppliers.length === 0 ? (
+          {db.boruSuppliers.filter(s => !s.deleted).length === 0 ? (
             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: '#334155' }}>
               <div style={{ fontSize: '3rem', marginBottom: 12 }}>🔩</div><p>Boru tedarikçisi eklenmedi</p>
             </div>
-          ) : db.boruSuppliers.map(s => (
+          ) : db.boruSuppliers.filter(s => !s.deleted).map(s => (
             <div key={s.id} style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)', padding: 18 }}>
               <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>🔩 {s.name}</h4>
               {s.type && <p style={{ color: '#f59e0b', fontSize: '0.82rem', marginBottom: 6 }}>{s.type}</p>}

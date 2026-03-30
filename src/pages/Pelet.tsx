@@ -55,7 +55,8 @@ export default function Pelet({ db, save }: Props) {
 
   const deleteSupplier = (id: string) => {
     showConfirm('Sil', 'Emin misiniz?', () => {
-      save(prev => ({ ...prev, peletSuppliers: prev.peletSuppliers.filter(s => s.id !== id) }));
+      // Fix: soft-delete
+      save(prev => ({ ...prev, peletSuppliers: prev.peletSuppliers.map(s => s.id === id ? { ...s, deleted: true, updatedAt: new Date().toISOString() } : s) }));
       showToast('Silindi!');
     });
   };
@@ -83,7 +84,7 @@ export default function Pelet({ db, save }: Props) {
         </div>
         <div style={{ background: '#1e293b', borderRadius: 12, padding: 18, border: '1px solid #334155' }}>
           <div style={{ color: '#64748b', fontSize: '0.78rem' }}>🏭 Tedarikçi Sayısı</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#3b82f6', marginTop: 4 }}>{db.peletSuppliers.length}</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#3b82f6', marginTop: 4 }}>{db.peletSuppliers.filter(s => !s.deleted).length}</div>
         </div>
       </div>
 
@@ -99,9 +100,9 @@ export default function Pelet({ db, save }: Props) {
 
       {tab === 'suppliers' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px,1fr))', gap: 14 }}>
-          {db.peletSuppliers.length === 0 ? (
+          {db.peletSuppliers.filter(s => !s.deleted).length === 0 ? (
             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: '#64748b' }}>Tedarikçi eklenmedi</div>
-          ) : db.peletSuppliers.map(s => (
+          ) : db.peletSuppliers.filter(s => !s.deleted).map(s => (
             <div key={s.id} style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 18 }}>
               <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 6 }}>🪵 {s.name}</h4>
               {s.phone && <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>📞 {s.phone}</p>}

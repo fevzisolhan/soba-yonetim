@@ -20,13 +20,13 @@ export default function Cari({ db, save }: Props) {
   const [editId, setEditId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  let cari = db.cari;
+  let cari = db.cari.filter(c => !c.deleted);
   if (filter !== 'all') cari = cari.filter(c => c.type === filter);
   if (search) cari = cari.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search));
   const sorted = [...cari].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 
-  const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-  const totalPayable = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const totalPayable = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
 
   const openAdd = () => { setForm({ ...empty }); setEditId(null); setModalOpen(true); };
   const openEdit = (c: CariType) => { setForm({ ...c }); setEditId(c.id); setModalOpen(true); };
@@ -51,7 +51,8 @@ export default function Cari({ db, save }: Props) {
 
   const handleDelete = (id: string) => {
     showConfirm('Cari Sil', 'Bu cari kaydını silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, cari: prev.cari.filter(c => c.id !== id) }));
+      // Fix: soft-delete — cari kaydı finansal geçmişi taşır, fiziksel silinmez
+      save(prev => ({ ...prev, cari: prev.cari.map(c => c.id === id ? { ...c, deleted: true, updatedAt: new Date().toISOString() } : c) }));
       showToast('Cari silindi!', 'success');
     });
   };

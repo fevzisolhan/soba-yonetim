@@ -61,6 +61,7 @@ export interface Supplier {
   totalOrders: number;
   totalAmount: number;
   cariId?: string;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -124,6 +125,7 @@ export interface Cari {
   lastTransaction?: string;
   ortak?: boolean;
   partnerId?: string;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -212,6 +214,7 @@ export interface PeletSupplier {
   address?: string;
   note?: string;
   tonPrice?: number;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -239,6 +242,7 @@ export interface BoruSupplier {
   email?: string;
   address?: string;
   note?: string;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -322,6 +326,7 @@ export interface Invoice {
   note?: string;
   kasaEntryId?: string;
   cariUpdated?: boolean;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }
