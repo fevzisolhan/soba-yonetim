@@ -52,7 +52,10 @@ export default function Kasa({ db, save }: Props) {
     save(prev => {
       let cari = prev.cari;
       if (form.cariId) {
-        cari = cari.map(c => c.id === form.cariId ? { ...c, balance: (c.balance || 0) + (type === 'gider' ? amount : -amount), lastTransaction: nowIso } : c);
+        // Gelir (tahsilat): müşteri ödedi → alacak azalır (balance -)
+        // Gider (ödeme): tedarikçiye ödedik → borç azalır (balance -)
+        // Her iki durumda da cari bakiye düşer
+        cari = cari.map(c => c.id === form.cariId ? { ...c, balance: (c.balance || 0) - amount, lastTransaction: nowIso, updatedAt: nowIso } : c);
       }
       return { ...prev, kasa: [...prev.kasa, entry], cari };
     });
@@ -78,7 +81,7 @@ export default function Kasa({ db, save }: Props) {
         if (entry.cariId) {
           cari = cari.map(c =>
             c.id === entry.cariId
-              ? { ...c, balance: (c.balance || 0) - (entry.type === 'gider' ? entry.amount : -entry.amount), lastTransaction: nowIso, updatedAt: nowIso }
+              ? { ...c, balance: (c.balance || 0) + entry.amount, lastTransaction: nowIso, updatedAt: nowIso }
               : c
           );
         }
