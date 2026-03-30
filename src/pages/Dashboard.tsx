@@ -184,16 +184,18 @@ export default function Dashboard({ db, onTabChange }: Props) {
     const monthRevenue = monthSales.reduce((s, sale) => s + sale.total, 0);
     const monthProfit = monthSales.reduce((s, sale) => s + sale.profit, 0);
 
-    const outOfStock = db.products.filter(p => p.stock === 0).length;
-    const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+    const activeProducts = db.products.filter(p => !p.deleted);
+    const outOfStock = activeProducts.filter(p => p.stock === 0).length;
+    const lowStock = activeProducts.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
 
-    const totalKasa = db.kasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-    const nakit = db.kasa.filter(k => k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-    const banka = db.kasa.filter(k => k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const activeKasa = db.kasa.filter(k => !k.deleted);
+    const totalKasa = activeKasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const nakit = activeKasa.filter(k => k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const banka = activeKasa.filter(k => k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
 
     const pendingOrders = db.orders.filter(o => o.status === 'bekliyor').length;
-    const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-    const stokDeger = db.products.reduce((s, p) => s + p.cost * p.stock, 0);
+    const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const stokDeger = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
 
     return { todayRevenue, todayProfit, todaySalesCount: todaySales.length, monthRevenue, monthProfit, outOfStock, lowStock, totalKasa, nakit, banka, pendingOrders, totalReceivable, stokDeger, revTrend };
   }, [db]);
@@ -202,7 +204,7 @@ export default function Dashboard({ db, onTabChange }: Props) {
     { icon: '💰', label: 'Bugün Ciro', value: formatMoney(stats.todayRevenue), color: '#10b981', gradient: 'rgba(16,185,129,0.12) 0%, rgba(16,185,129,0.04) 100%', sub: `${stats.todaySalesCount} satış`, tab: 'sales', trend: stats.revTrend },
     { icon: '📈', label: 'Bugün Kâr', value: formatMoney(stats.todayProfit), color: '#3b82f6', gradient: 'rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%', sub: `${stats.todayRevenue > 0 ? ((stats.todayProfit / stats.todayRevenue) * 100).toFixed(1) : 0}% marj` },
     { icon: '📅', label: 'Bu Ay Ciro', value: formatMoney(stats.monthRevenue), color: '#8b5cf6', gradient: 'rgba(139,92,246,0.12) 0%, rgba(139,92,246,0.04) 100%', sub: `Kâr: ${formatMoney(stats.monthProfit)}` },
-    { icon: '📦', label: 'Stok Değeri', value: formatMoney(stats.stokDeger), color: '#f59e0b', gradient: 'rgba(245,158,11,0.12) 0%, rgba(245,158,11,0.04) 100%', tab: 'stock', sub: `${db.products.length} ürün` },
+    { icon: '📦', label: 'Stok Değeri', value: formatMoney(stats.stokDeger), color: '#f59e0b', gradient: 'rgba(245,158,11,0.12) 0%, rgba(245,158,11,0.04) 100%', tab: 'stock', sub: `${db.products.filter(p => !p.deleted).length} ürün` },
     { icon: '💵', label: 'Nakit Kasa', value: formatMoney(stats.nakit), color: '#06b6d4', gradient: 'rgba(6,182,212,0.12) 0%, rgba(6,182,212,0.04) 100%', tab: 'kasa' },
     { icon: '🏦', label: 'Banka', value: formatMoney(stats.banka), color: '#6366f1', gradient: 'rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.04) 100%', tab: 'kasa' },
     { icon: '📋', label: 'Alacak', value: formatMoney(stats.totalReceivable), color: '#ff5722', gradient: 'rgba(255,87,34,0.12) 0%, rgba(255,87,34,0.04) 100%', tab: 'cari' },
@@ -287,10 +289,10 @@ export default function Dashboard({ db, onTabChange }: Props) {
         return (
           <WidgetCard title="📊 Hızlı Özet" subtitle="Genel durum">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <QuickStat label="Toplam Ürün" value={String(db.products.length)} color="#3b82f6" icon="📦" />
+              <QuickStat label="Toplam Ürün" value={String(db.products.filter(p => !p.deleted).length)} color="#3b82f6" icon="📦" />
               <QuickStat label="Toplam Satış" value={String(db.sales.filter(s => s.status === 'tamamlandi').length)} color="#10b981" icon="🛒" />
-              <QuickStat label="Tedarikçi" value={String(db.suppliers.length)} color="#f59e0b" icon="🏭" />
-              <QuickStat label="Cari Müşteri" value={String(db.cari.filter(c => c.type === 'musteri').length)} color="#8b5cf6" icon="👤" />
+              <QuickStat label="Tedarikçi" value={String(db.suppliers.filter(s => !s.deleted).length)} color="#f59e0b" icon="🏭" />
+              <QuickStat label="Cari Müşteri" value={String(db.cari.filter(c => !c.deleted && c.type === 'musteri').length)} color="#8b5cf6" icon="👤" />
               <QuickStat label="Bek. Sipariş" value={String(stats.pendingOrders)} color="#ef4444" icon="📋" />
             </div>
           </WidgetCard>
@@ -523,8 +525,8 @@ function WidgetCard({ title, subtitle, children, extra }: { title: string; subti
 function Oneriler({ db, onTabChange }: { db: DB; onTabChange: (tab: string) => void }) {
   const tips = useMemo(() => {
     const list: { icon: string; text: string; action: string; tab: string; level: 'warn' | 'info' | 'ok' }[] = [];
-    const outStock = db.products.filter(p => p.stock === 0);
-    const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock);
+    const outStock = db.products.filter(p => !p.deleted && p.stock === 0);
+    const lowStock = db.products.filter(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock);
     if (outStock.length > 0) list.push({ icon: '⚠️', text: `${outStock.length} ürün stok bitti: ${outStock.slice(0, 2).map(p => p.name).join(', ')}${outStock.length > 2 ? '...' : ''}`, action: 'Ürünlere Git', tab: 'products', level: 'warn' });
     if (lowStock.length > 0) list.push({ icon: '📦', text: `${lowStock.length} üründe az stok uyarısı var`, action: 'Stoka Git', tab: 'stock', level: 'warn' });
     const toplar = db.cari.filter(c => c.type === 'musteri' && c.balance > 0);

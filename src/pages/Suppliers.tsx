@@ -212,7 +212,7 @@ export default function Suppliers({ db, save }: Props) {
             <button onClick={() => setOrderModal(true)} style={{ background: '#ff5722', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }}>+ Sipariş Ver</button>
             <select value={selectedSup} onChange={e => setSelectedSup(e.target.value)} style={{ padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9' }}>
               <option value="">Tüm Tedarikçiler</option>
-              {db.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {db.suppliers.filter(s => !s.deleted).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div style={{ background: '#1e293b', borderRadius: 14, border: '1px solid #334155', overflowX: 'auto' }}>
@@ -281,12 +281,12 @@ export default function Suppliers({ db, save }: Props) {
           <label style={lbl}>Tedarikçi *</label>
           <select value={orderSupplierId} onChange={e => setOrderSupplierId(e.target.value)} style={{ ...inp, marginBottom: 12 }}>
             <option value="">-- Tedarikçi Seç --</option>
-            {db.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {db.suppliers.filter(s => !s.deleted).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <label style={lbl}>Ürün Ekle</label>
           <select onChange={e => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }} style={{ ...inp, marginBottom: 12 }}>
             <option value="">-- Ürün Seç --</option>
-            {db.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {db.products.filter(p => !p.deleted).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {orderItems.map(item => (
             <div key={item.productId} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, background: '#0f172a', borderRadius: 8, padding: '8px 10px' }}>

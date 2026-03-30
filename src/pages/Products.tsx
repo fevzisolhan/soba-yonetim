@@ -20,7 +20,7 @@ export default function Products({ db, save }: Props) {
   const [form, setForm] = useState<Partial<Product>>(empty);
   const [editId, setEditId] = useState<string | null>(null);
 
-  let products = db.products;
+  let products = db.products.filter(p => !p.deleted);
   if (filter === 'zero') products = products.filter(p => p.stock === 0);
   else if (filter === 'low') products = products.filter(p => p.stock > 0 && p.stock <= p.minStock);
   else if (filter !== 'all') products = products.filter(p => p.category === filter);
@@ -50,16 +50,18 @@ export default function Products({ db, save }: Props) {
 
   const handleDelete = (id: string) => {
     showConfirm('Ürünü Sil', 'Bu ürünü silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }));
+      // Fix: soft-delete — ürün satış/stok geçmişine bağlı
+      save(prev => ({ ...prev, products: prev.products.map(p => p.id === id ? { ...p, deleted: true, updatedAt: new Date().toISOString() } : p) }));
       showToast('Ürün silindi!', 'success');
     });
   };
 
   const f = (k: keyof Product, v: unknown) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const totalValue = db.products.reduce((s, p) => s + p.cost * p.stock, 0);
-  const outOfStock = db.products.filter(p => p.stock === 0).length;
-  const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+  const activeProducts = db.products.filter(p => !p.deleted);
+  const totalValue = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
+  const outOfStock = activeProducts.filter(p => p.stock === 0).length;
+  const lowStock = activeProducts.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
 
   return (
     <div>

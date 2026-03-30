@@ -216,7 +216,7 @@ export default function Sales({ db, save }: Props) {
             <label style={lbl}>Ürün Ekle</label>
             <select onChange={e => { if (e.target.value) { addItem(e.target.value); e.target.value = ''; } }} style={sinpStyle}>
               <option value="">-- Ürün Seç --</option>
-              {db.products.filter(p => p.stock > 0).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map(p => (
+              {db.products.filter(p => !p.deleted && p.stock > 0).sort((a, b) => a.name.localeCompare(b.name, 'tr')).map(p => (
                 <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>
               ))}
             </select>
@@ -234,7 +234,7 @@ export default function Sales({ db, save }: Props) {
             <label style={lbl}>Müşteri (opsiyonel)</label>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={sinpStyle}>
               <option value="">-- Müşteri Seç --</option>
-              {db.cari.filter(c => c.type === 'musteri').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {db.cari.filter(c => !c.deleted && c.type === 'musteri').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <label style={{ ...lbl, marginTop: 12 }}>Ödeme Şekli</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

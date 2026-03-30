@@ -10,6 +10,7 @@ export interface Product {
   barcode?: string;
   description?: string;
   active?: boolean;
+  deleted?: boolean;
   createdAt: string;
   updatedAt: string;
 }

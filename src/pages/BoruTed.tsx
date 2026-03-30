@@ -169,7 +169,7 @@ export default function BoruTed({ db, save }: Props) {
             <label style={lbl}>Tedarikçi *</label>
             <select value={orderForm.supplierId} onChange={e => setOrderForm(f => ({ ...f, supplierId: e.target.value }))} style={inp}>
               <option value="">-- Seçin --</option>
-              {db.boruSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {db.boruSuppliers.filter(s => !s.deleted).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div><label style={lbl}>Malzeme Listesi</label><textarea value={orderForm.items} onChange={e => setOrderForm(f => ({ ...f, items: e.target.value }))} style={{ ...inp, minHeight: 60 }} placeholder="Örn: DN100 10mt, DN80 5mt..." /></div>

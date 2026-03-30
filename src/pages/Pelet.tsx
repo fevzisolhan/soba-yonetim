@@ -171,7 +171,7 @@ export default function Pelet({ db, save }: Props) {
             <label style={lbl}>Tedarikçi *</label>
             <select value={orderForm.supplierId} onChange={e => setOrderForm(f => ({ ...f, supplierId: e.target.value }))} style={inp}>
               <option value="">-- Seçin --</option>
-              {db.peletSuppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {db.peletSuppliers.filter(s => !s.deleted).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

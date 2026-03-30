@@ -274,7 +274,7 @@ export default function Fatura({ db, save }: Props) {
               <label style={lbl}>{form.type === 'satis' ? 'Müşteri' : 'Tedarikçi'} *</label>
               <select value={form.cariId} onChange={e => selectCari(e.target.value)} style={inp}>
                 <option value="">-- Cari Seç veya elle yazın --</option>
-                {db.cari.filter(c => form.type === 'satis' ? c.type === 'musteri' : c.type === 'tedarikci').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {db.cari.filter(c => !c.deleted && (form.type === 'satis' ? c.type === 'musteri' : c.type === 'tedarikci')).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div><label style={lbl}>Ad/Ünvan *</label><input value={form.cariName} onChange={e => setForm(f => ({ ...f, cariName: e.target.value }))} style={inp} /></div>
