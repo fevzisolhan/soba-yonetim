@@ -22,6 +22,7 @@ import AIAsistan from '@/pages/AIAsistan';
 import Fatura from '@/pages/Fatura';
 import Entegrasyonlar from '@/pages/Entegrasyonlar';
 import Butce from '@/pages/Butce';
+import KontrolHalkasi from '@/pages/KontrolHalkasi';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
 
@@ -52,6 +53,7 @@ const TABS = [
   { id: 'reports', label: 'Raporlar', icon: '📈', group: 'Analiz' },
   { id: 'stock', label: 'Stok', icon: '🔢', group: 'Analiz' },
   { id: 'monitor', label: 'İzleme', icon: '🔔', group: 'Analiz' },
+  { id: 'kontrol', label: 'Kontrol', icon: '⚡', group: 'Analiz' },
   { id: 'ai', label: 'AI Asistan', icon: '🤖', group: 'Analiz' },
   { id: 'entegrasyon', label: 'Entegrasyon', icon: '🔗', group: 'Sistem' },
   { id: 'partners', label: 'Ortaklar', icon: '🤝', group: 'Sistem' },
@@ -449,6 +451,7 @@ function AppContent() {
           {activeTab === 'reports' && <Reports db={db} />}
           {activeTab === 'stock' && <Stock db={db} save={save} />}
           {activeTab === 'monitor' && <Monitor db={db} save={save} />}
+          {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
           {activeTab === 'ai' && <AIAsistan db={db} />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'partners' && <Partners db={db} save={save} />}

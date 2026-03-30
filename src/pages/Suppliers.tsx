@@ -25,6 +25,7 @@ export default function Suppliers({ db, save }: Props) {
   const [orderSupplierId, setOrderSupplierId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [orderNote, setOrderNote] = useState('');
+  const [nakliye, setNakliye] = useState(0);
 
   const addOrderItem = (productId: string) => {
     const p = db.products.find(x => x.id === productId);
@@ -76,7 +77,9 @@ export default function Suppliers({ db, save }: Props) {
     const amount = orderItems.reduce((s, i) => s + i.lineTotal, 0);
     const nowIso = new Date().toISOString();
     const order: Order = {
-      id: genId(), supplierId: orderSupplierId, items: orderItems, amount, paidAmount: 0, remainingAmount: amount,
+      id: genId(), supplierId: orderSupplierId, items: orderItems, amount,
+      nakliye: nakliye > 0 ? nakliye : undefined,
+      paidAmount: 0, remainingAmount: amount,
       payments: [], deliveryDate, note: orderNote, status: 'bekliyor', createdAt: nowIso, updatedAt: nowIso,
     };
     save(prev => {
@@ -84,7 +87,7 @@ export default function Suppliers({ db, save }: Props) {
       return { ...prev, orders: [...prev.orders, order], suppliers };
     });
     showToast('Sipariş oluşturuldu!');
-    setOrderItems([]); setOrderSupplierId(''); setDeliveryDate(''); setOrderNote('');
+    setOrderItems([]); setOrderSupplierId(''); setDeliveryDate(''); setOrderNote(''); setNakliye(0);
     setOrderModal(false);
   };
 
@@ -103,11 +106,17 @@ export default function Suppliers({ db, save }: Props) {
       let newState = { ...prev, orders: prev.orders.map(o => o.id === id ? updatedOrder : o) };
 
       if (status === 'tamamlandi') {
-        // Stok güncelle
+        // Nakliye payını ürün başına dağıt (tutara oransal)
+        const totalOrderAmount = order.amount || 1;
+        const nakliyeToplam = order.nakliye || 0;
+
+        // Stok güncelle + alış fiyatına nakliye payı ekle
         const products = prev.products.map(p => {
           const item = order.items.find(i => i.productId === p.id);
           if (!item) return p;
-          return { ...p, stock: p.stock + item.qty };
+          const nakliyePay = nakliyeToplam > 0 ? (item.lineTotal / totalOrderAmount) * nakliyeToplam / item.qty : 0;
+          const yeniMaliyet = item.unitCost + nakliyePay;
+          return { ...p, stock: p.stock + item.qty, cost: Math.round(yeniMaliyet * 100) / 100 };
         });
         const stockMovements = [...prev.stockMovements, ...order.items.map(i => ({
           id: genId(), productId: i.productId, productName: i.productName, type: 'giris' as const,
@@ -116,9 +125,9 @@ export default function Suppliers({ db, save }: Props) {
           note: 'Sipariş alındı', date: new Date().toISOString(),
         }))];
 
-        // Cari borç ekle
+        // Cari borç ekle — sadece ID ile eşleş, isim bazlı çift kayıt hatasını önle
         const cari = prev.cari.map(c => {
-          if (c.id === order.supplierId || (c.type === 'tedarikci' && c.name === prev.suppliers.find(s => s.id === order.supplierId)?.name)) {
+          if (c.id === order.supplierId) {
             return { ...c, balance: (c.balance || 0) + order.amount, updatedAt: new Date().toISOString() };
           }
           return c;
@@ -297,13 +306,27 @@ export default function Suppliers({ db, save }: Props) {
           ))}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div><label style={lbl}>Teslim Tarihi</label><input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} style={inp} /></div>
+            <div>
+              <label style={lbl}>Nakliye Maliyeti (₺)</label>
+              <input type="number" value={nakliye || ''} min={0} step={0.01} placeholder="0,00" onChange={e => setNakliye(parseFloat(e.target.value) || 0)} style={inp} />
+            </div>
           </div>
           <div style={{ marginTop: 12 }}><label style={lbl}>Not</label><textarea value={orderNote} onChange={e => setOrderNote(e.target.value)} style={{ ...inp, minHeight: 50 }} /></div>
           {orderItems.length > 0 && (
             <div style={{ background: '#0f172a', borderRadius: 8, padding: '12px 14px', marginTop: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#94a3b8' }}>Toplam</span>
-                <span style={{ color: '#10b981', fontWeight: 800, fontSize: '1.1rem' }}>{formatMoney(orderItems.reduce((s, i) => s + i.lineTotal, 0))}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ color: '#94a3b8' }}>Ürün Toplamı</span>
+                <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{formatMoney(orderItems.reduce((s, i) => s + i.lineTotal, 0))}</span>
+              </div>
+              {nakliye > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>+ Nakliye</span>
+                  <span style={{ color: '#f59e0b', fontWeight: 600, fontSize: '0.85rem' }}>{formatMoney(nakliye)}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #1e3a5f', paddingTop: 8 }}>
+                <span style={{ color: '#94a3b8' }}>Genel Toplam</span>
+                <span style={{ color: '#10b981', fontWeight: 800, fontSize: '1.1rem' }}>{formatMoney(orderItems.reduce((s, i) => s + i.lineTotal, 0) + nakliye)}</span>
               </div>
             </div>
           )}

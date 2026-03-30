@@ -119,17 +119,37 @@ export default function Sales({ db, save }: Props) {
       save(prev => {
         const sale = prev.sales.find(s => s.id === id);
         if (!sale) return prev;
+
+        // Stokları geri yükle
         const products = prev.products.map(p => {
           const item = sale.items?.find(i => i.productId === p.id);
           if (!item) return p;
           return { ...p, stock: p.stock + item.quantity };
         });
+
         const sales = prev.sales.map(s => s.id === id ? { ...s, status: 'iade' as const, returnedAt: nowIso, updatedAt: nowIso } : s);
-        const kasaEntry = {
-          id: genId(), type: 'gider' as const, category: 'iade', amount: sale.total, kasa: 'nakit',
-          description: `İade: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
-        };
-        return { ...prev, sales, products, kasa: [...prev.kasa, kasaEntry] };
+
+        let kasa = prev.kasa;
+        let cari = prev.cari;
+
+        if (sale.payment === 'cari' && sale.customerId) {
+          // Cari ödeme: bakiyeyi geri al (müşteri artık bu tutarı borçlu değil)
+          cari = cari.map(c =>
+            c.id === sale.customerId
+              ? { ...c, balance: (c.balance || 0) - sale.total, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+          );
+        } else {
+          // Nakit/kart/havale: iade gideri oluştur, doğru kasayı kullan
+          const kasaId = (sale.payment === 'kart' || sale.payment === 'havale') ? 'banka' : 'nakit';
+          const kasaEntry = {
+            id: genId(), type: 'gider' as const, category: 'iade', amount: sale.total, kasa: kasaId,
+            description: `İade: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
+          };
+          kasa = [...kasa, kasaEntry];
+        }
+
+        return { ...prev, sales, products, kasa, cari };
       });
       showToast('İade işlemi tamamlandı!', 'success');
     });

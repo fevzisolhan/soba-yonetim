@@ -22,6 +22,9 @@ function makeDefaultDB(): DB {
     kasalar: [
       { id: 'nakit', name: 'Nakit', icon: '💵' },
       { id: 'banka', name: 'Banka', icon: '🏦' },
+      { id: 'pos_ziraat', name: 'POS Ziraat', icon: '🏧' },
+      { id: 'pos_is', name: 'POS İş', icon: '🏧' },
+      { id: 'pos_yk', name: 'POS YapıKredi', icon: '🏧' },
     ] as Kasa[],
     bankTransactions: [],
     matchRules: [],
@@ -56,6 +59,14 @@ function loadFromStorage(): DB {
     const def = makeDefaultDB();
     const merged = { ...def, ...parsed };
     if (!merged.kasalar || merged.kasalar.length === 0) merged.kasalar = def.kasalar;
+    // POS kasalarını eksikse ekle
+    const posIds = ['pos_ziraat', 'pos_is', 'pos_yk'];
+    posIds.forEach(pid => {
+      if (!merged.kasalar.find((k: Kasa) => k.id === pid)) {
+        const defKasa = def.kasalar.find(k => k.id === pid);
+        if (defKasa) merged.kasalar.push(defKasa);
+      }
+    });
     if (!merged.monitorRules || merged.monitorRules.length === 0) merged.monitorRules = def.monitorRules;
     if (!merged.pelletSettings) merged.pelletSettings = def.pelletSettings;
     if (!merged.company || typeof merged.company !== 'object') merged.company = def.company;
