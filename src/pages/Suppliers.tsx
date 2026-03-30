@@ -116,9 +116,9 @@ export default function Suppliers({ db, save }: Props) {
           note: 'Sipariş alındı', date: new Date().toISOString(),
         }))];
 
-        // Cari borç ekle
+        // Cari borç ekle — sadece ID ile eşleş, isim bazlı çift kayıt hatasını önle
         const cari = prev.cari.map(c => {
-          if (c.id === order.supplierId || (c.type === 'tedarikci' && c.name === prev.suppliers.find(s => s.id === order.supplierId)?.name)) {
+          if (c.id === order.supplierId) {
             return { ...c, balance: (c.balance || 0) + order.amount, updatedAt: new Date().toISOString() };
           }
           return c;

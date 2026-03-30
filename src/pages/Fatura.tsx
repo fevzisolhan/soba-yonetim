@@ -45,7 +45,7 @@ export default function Fatura({ db, save }: Props) {
   });
 
   const invoices = useMemo(() => {
-    let list = [...(db.invoices || [])];
+    let list = (db.invoices || []).filter(i => !i.deleted);
     if (filter !== 'all') list = list.filter(i => i.type === filter);
     if (statusFilter !== 'all') list = list.filter(i => i.status === statusFilter);
     if (search) { const q = search.toLowerCase(); list = list.filter(i => i.invoiceNo.toLowerCase().includes(q) || i.cariName.toLowerCase().includes(q)); }
@@ -53,7 +53,7 @@ export default function Fatura({ db, save }: Props) {
   }, [db.invoices, filter, statusFilter, search]);
 
   const stats = useMemo(() => {
-    const all = db.invoices || [];
+    const all = (db.invoices || []).filter(i => !i.deleted);
     const satisTotal = all.filter(i => i.type === 'satis' && i.status !== 'iptal').reduce((s, i) => s + i.total, 0);
     const alisTotal = all.filter(i => i.type === 'alis' && i.status !== 'iptal').reduce((s, i) => s + i.total, 0);
     const unpaid = all.filter(i => i.status === 'onaylandi').reduce((s, i) => s + i.total, 0);
@@ -154,9 +154,22 @@ export default function Fatura({ db, save }: Props) {
         showToast(`👤 Cari bakiye güncellendi: ${inv.cariName}`);
       }
 
-      if (status === 'iptal' && inv.kasaEntryId) {
-        kasa = kasa.filter(k => k.id !== inv.kasaEntryId);
-        kasaEntryId = undefined;
+      if (status === 'iptal') {
+        // Kasa kaydını soft-delete et
+        if (inv.kasaEntryId) {
+          kasa = kasa.map(k => k.id === inv.kasaEntryId ? { ...k, deleted: true, updatedAt: nowIso } : k);
+          kasaEntryId = undefined;
+        }
+        // Cari bakiyeyi geri al (onaylandi + cari ödeme ile güncellenmişse)
+        if (inv.cariUpdated && inv.cariId && inv.payment === 'cari') {
+          const delta = inv.type === 'satis' ? inv.total : -inv.total;
+          cari = cari.map(c =>
+            c.id === inv.cariId
+              ? { ...c, balance: (c.balance || 0) - delta, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+          );
+          cariUpdated = false;
+        }
       }
 
       const invoices = (prev.invoices || []).map(i => i.id === id ? { ...i, status, kasaEntryId, cariUpdated, updatedAt: nowIso } : i);
@@ -166,9 +179,35 @@ export default function Fatura({ db, save }: Props) {
   };
 
   const deleteInvoice = (id: string) => {
-    showConfirm('Fatura Sil', 'Bu fatura kalıcı olarak silinecek!', () => {
-      save(prev => ({ ...prev, invoices: (prev.invoices || []).filter(i => i.id !== id) }));
-      showToast('Silindi!');
+    showConfirm('Fatura Sil', 'Bu fatura silinecek. Kasa ve cari etkileri de geri alınacak.', () => {
+      const nowIso = new Date().toISOString();
+      save(prev => {
+        const inv = (prev.invoices || []).find(i => i.id === id);
+        if (!inv) return prev;
+
+        let kasa = prev.kasa;
+        let cari = prev.cari;
+
+        // Kasa kaydını soft-delete et
+        if (inv.kasaEntryId) {
+          kasa = kasa.map(k => k.id === inv.kasaEntryId ? { ...k, deleted: true, updatedAt: nowIso } : k);
+        }
+
+        // Cari güncellenmişse geri al
+        if (inv.cariUpdated && inv.cariId && inv.payment === 'cari') {
+          const delta = inv.type === 'satis' ? inv.total : -inv.total;
+          cari = cari.map(c =>
+            c.id === inv.cariId
+              ? { ...c, balance: (c.balance || 0) - delta, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+          );
+        }
+
+        // Faturayı soft-delete et
+        const invoices = (prev.invoices || []).map(i => i.id === id ? { ...i, deleted: true, updatedAt: nowIso } : i);
+        return { ...prev, invoices, kasa, cari };
+      });
+      showToast('Fatura silindi!');
     });
   };
 
