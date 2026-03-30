@@ -139,24 +139,17 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
 
       {tab === 'backup' && (
         <div style={{ display: 'grid', gap: 14 }}>
-          <Card title="📤 Yedek Al">
-            <p style={{ color: '#64748b', fontSize: '0.88rem', marginBottom: 16, lineHeight: 1.6 }}>Tüm verilerinizi <strong style={{ color: '#f59e0b' }}>JSON formatında</strong> dışa aktarın.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 16 }}>
-              {dataStats.slice(0, 4).map(d => (
-                <div key={d.label} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.2rem', marginBottom: 4 }}>{d.icon}</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f1f5f9' }}>{d.count}</div>
-                  <div style={{ color: '#334155', fontSize: '0.72rem' }}>{d.label}</div>
-                </div>
-              ))}
-            </div>
+          <Card title="💾 Tam Yedek Al">
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginBottom: 16, lineHeight: 1.6 }}>Tüm verilerinizi <strong style={{ color: '#f59e0b' }}>JSON formatında</strong> tek dosyaya dışa aktarın.</p>
             <div style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 10, padding: '10px 16px', marginBottom: 16, color: '#10b981', fontSize: '0.85rem', fontWeight: 600 }}>
               Toplam {totalRecords} kayıt yedeklenecek
             </div>
             <button onClick={exportJSON} style={{ ...btnPrimary, background: 'linear-gradient(135deg, #059669, #10b981)' }}>
-              Yedeği İndir (.json)
+              Tüm Veriyi İndir (.json)
             </button>
           </Card>
+
+          <SelectiveExport db={db} />
 
           <SelectiveRestore showToast={showToast} showConfirm={showConfirm as (t: string, m: string, ok: () => void, d?: boolean) => void} />
 
@@ -523,7 +516,7 @@ function ActivityPanel({ db, save, showToast, showConfirm }: {
   );
 }
 
-const RESTORE_SECTIONS = [
+const DATA_SECTIONS = [
   { key: 'products', label: 'Ürünler', icon: '📦' },
   { key: 'sales', label: 'Satışlar', icon: '🛒' },
   { key: 'suppliers', label: 'Tedarikçiler', icon: '🏭' },
@@ -543,6 +536,90 @@ const RESTORE_SECTIONS = [
   { key: 'pelletSettings', label: 'Pelet Ayarları', icon: '⚙️', isObject: true },
 ] as const;
 
+const RESTORE_SECTIONS = DATA_SECTIONS;
+
+function SelectiveExport({ db }: { db: DB }) {
+  const allKeys = DATA_SECTIONS.map(s => s.key);
+  const [selected, setSelected] = useState<Set<string>>(new Set(allKeys));
+
+  const getCount = (key: string): number => {
+    const val = db[key as keyof DB];
+    if (Array.isArray(val)) return (val as unknown[]).length;
+    if (val && typeof val === 'object') return 1;
+    return 0;
+  };
+
+  const toggle = (key: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const doExport = () => {
+    const partial: Record<string, unknown> = { _version: db._version };
+    DATA_SECTIONS.forEach(s => {
+      if (selected.has(s.key)) partial[s.key] = db[s.key as keyof DB];
+    });
+    const blob = new Blob([JSON.stringify(partial, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `soba-yedek-secimli-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const totalSelected = DATA_SECTIONS.filter(s => selected.has(s.key)).reduce((sum, s) => sum + getCount(s.key), 0);
+
+  return (
+    <Card title="📤 Seçimli Yedek Al">
+      <p style={{ color: '#64748b', fontSize: '0.88rem', marginBottom: 14, lineHeight: 1.6 }}>
+        Yalnızca istediğiniz bölümleri seçerek <strong style={{ color: '#f59e0b' }}>kısmi yedek</strong> alın.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <button onClick={() => setSelected(new Set(allKeys))} style={{ padding: '4px 10px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: 6, color: '#10b981', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>Tümünü Seç</button>
+        <button onClick={() => setSelected(new Set())} style={{ padding: '4px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>Hiçbirini Seçme</button>
+        <span style={{ color: '#475569', fontSize: '0.78rem', marginLeft: 'auto' }}>{selected.size} bölüm · {totalSelected} kayıt</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 14 }}>
+        {DATA_SECTIONS.map(s => {
+          const isSelected = selected.has(s.key);
+          const count = getCount(s.key);
+          return (
+            <div key={s.key} onClick={() => toggle(s.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+              background: isSelected ? 'rgba(16,185,129,0.07)' : 'rgba(0,0,0,0.2)',
+              border: `1px solid ${isSelected ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.04)'}`,
+              borderRadius: 9, cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isSelected ? '#10b981' : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${isSelected ? '#10b981' : 'rgba(255,255,255,0.12)'}`,
+                color: '#fff', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
+              }}>{isSelected ? '✓' : ''}</div>
+              <span style={{ fontSize: '0.9rem' }}>{s.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: isSelected ? '#f1f5f9' : '#64748b', fontWeight: 600, fontSize: '0.8rem' }}>{s.label}</div>
+                <div style={{ color: '#334155', fontSize: '0.7rem' }}>{s.isObject ? 'Ayarlar' : `${count} kayıt`}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        onClick={doExport}
+        disabled={selected.size === 0}
+        style={{ width: '100%', padding: '11px 0', background: selected.size === 0 ? '#1e293b' : 'linear-gradient(135deg, #059669, #10b981)', border: 'none', borderRadius: 10, color: selected.size === 0 ? '#475569' : '#fff', fontWeight: 700, cursor: selected.size === 0 ? 'not-allowed' : 'pointer', fontSize: '0.9rem', transition: 'all 0.2s' }}
+      >
+        {selected.size === 0 ? 'Bölüm seçin' : `${selected.size} Bölümü Yedekle (.json)`}
+      </button>
+    </Card>
+  );
+}
+
 function SelectiveRestore({ showToast, showConfirm }: {
   showToast: (m: string, t?: string) => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
@@ -552,6 +629,9 @@ function SelectiveRestore({ showToast, showConfirm }: {
   const [fileName, setFileName] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [available, setAvailable] = useState<{ key: string; label: string; icon: string; count: number; isObject?: boolean }[]>([]);
+  const [mergeMode, setMergeMode] = useState<Record<string, 'replace' | 'merge'>>({});
+
+  const toggleMerge = (key: string) => setMergeMode(prev => ({ ...prev, [key]: prev[key] === 'merge' ? 'replace' : 'merge' }));
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -601,15 +681,30 @@ function SelectiveRestore({ showToast, showConfirm }: {
   const doRestore = () => {
     if (!fileData || selected.size === 0) return;
     const selCount = available.filter(a => selected.has(a.key)).reduce((s, a) => s + a.count, 0);
+    const mergeCount = [...selected].filter(k => mergeMode[k] === 'merge').length;
+    const replaceCount = selected.size - mergeCount;
+    const modeDesc = mergeCount > 0 && replaceCount > 0
+      ? `${replaceCount} bölüm değiştirilecek, ${mergeCount} bölüm birleştirilecek`
+      : mergeCount > 0 ? `${mergeCount} bölüm mevcut veriyle birleştirilecek` : `${replaceCount} bölüm değiştirilecek`;
     showConfirm(
       'Seçimli Geri Yükleme',
-      `${selected.size} bölüm (${selCount} kayıt) geri yüklenecek. Seçilen bölümlerdeki mevcut veriler değiştirilecek. Devam edilsin mi?`,
+      `${selected.size} bölüm (${selCount} kayıt) geri yüklenecek. ${modeDesc}. Devam edilsin mi?`,
       () => {
         try {
           const raw = localStorage.getItem('sobaYonetim');
           const current = raw ? JSON.parse(raw) : {};
           selected.forEach(key => {
-            current[key] = fileData[key];
+            const mode = mergeMode[key] || 'replace';
+            const section = available.find(a => a.key === key);
+            if (mode === 'merge' && !section?.isObject && Array.isArray(fileData[key]) && Array.isArray(current[key])) {
+              const existing = current[key] as { id?: string }[];
+              const incoming = fileData[key] as { id?: string }[];
+              const existingIds = new Set(existing.map(i => i.id).filter(Boolean));
+              const newItems = incoming.filter(i => !i.id || !existingIds.has(i.id));
+              current[key] = [...existing, ...newItems];
+            } else {
+              current[key] = fileData[key];
+            }
           });
           localStorage.setItem('sobaYonetim', JSON.stringify(current));
           showToast(`${selected.size} bölüm başarıyla geri yüklendi! Sayfa yenilenecek...`, 'success');
@@ -622,7 +717,7 @@ function SelectiveRestore({ showToast, showConfirm }: {
     );
   };
 
-  const reset = () => { setFileData(null); setFileName(''); setSelected(new Set()); setAvailable([]); };
+  const reset = () => { setFileData(null); setFileName(''); setSelected(new Set()); setAvailable([]); setMergeMode({}); };
 
   return (
     <Card title="📂 Seçimli Geri Yükleme">
@@ -653,39 +748,49 @@ function SelectiveRestore({ showToast, showConfirm }: {
             <button onClick={selectNone} style={{ padding: '4px 10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#ef4444', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>Hiçbirini Seçme</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gap: 6 }}>
             {available.map(section => {
               const isSelected = selected.has(section.key);
+              const isMerge = mergeMode[section.key] === 'merge';
+              const canMerge = !section.isObject;
               return (
-                <div key={section.key} onClick={() => toggleSection(section.key)} style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                  background: isSelected ? 'rgba(59,130,246,0.08)' : 'rgba(0,0,0,0.2)',
-                  border: `1px solid ${isSelected ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)'}`,
-                  borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                <div key={section.key} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px',
+                  background: isSelected ? 'rgba(59,130,246,0.07)' : 'rgba(0,0,0,0.2)',
+                  border: `1px solid ${isSelected ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.04)'}`,
+                  borderRadius: 10, transition: 'all 0.15s',
                 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  <div onClick={() => toggleSection(section.key)} style={{
+                    width: 20, height: 20, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isSelected ? '#3b82f6' : 'rgba(255,255,255,0.06)',
                     border: `1px solid ${isSelected ? '#3b82f6' : 'rgba(255,255,255,0.12)'}`,
-                    color: '#fff', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0,
-                  }}>
-                    {isSelected ? '✓' : ''}
-                  </div>
-                  <span style={{ fontSize: '0.95rem' }}>{section.icon}</span>
-                  <div style={{ flex: 1 }}>
+                    color: '#fff', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0, cursor: 'pointer',
+                  }}>{isSelected ? '✓' : ''}</div>
+                  <span style={{ fontSize: '0.9rem' }}>{section.icon}</span>
+                  <div onClick={() => toggleSection(section.key)} style={{ flex: 1, cursor: 'pointer' }}>
                     <div style={{ color: isSelected ? '#f1f5f9' : '#64748b', fontWeight: 600, fontSize: '0.82rem' }}>{section.label}</div>
-                    <div style={{ color: '#334155', fontSize: '0.72rem' }}>
-                      {section.isObject ? 'Ayarlar' : `${section.count} kayıt`}
-                    </div>
+                    <div style={{ color: '#334155', fontSize: '0.7rem' }}>{section.isObject ? 'Ayarlar' : `${section.count} kayıt`}</div>
                   </div>
+                  {isSelected && canMerge && (
+                    <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+                      <button
+                        onClick={() => setMergeMode(prev => ({ ...prev, [section.key]: 'replace' }))}
+                        style={{ padding: '3px 9px', background: !isMerge ? '#ef4444' : 'rgba(0,0,0,0.3)', border: 'none', color: !isMerge ? '#fff' : '#64748b', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}
+                      >Değiştir</button>
+                      <button
+                        onClick={() => setMergeMode(prev => ({ ...prev, [section.key]: 'merge' }))}
+                        style={{ padding: '3px 9px', background: isMerge ? '#10b981' : 'rgba(0,0,0,0.3)', border: 'none', color: isMerge ? '#fff' : '#64748b', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}
+                      >Birleştir</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
 
           {selected.size > 0 && (
-            <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '10px 16px', color: '#fde68a', fontSize: '0.83rem' }}>
-              Seçilen {selected.size} bölümdeki mevcut veriler yedekteki verilerle değiştirilecek. Diğer bölümler dokunulmayacak.
+            <div style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)', borderRadius: 10, padding: '10px 16px', color: '#93c5fd', fontSize: '0.82rem', lineHeight: 1.6 }}>
+              <strong>Değiştir:</strong> bölümdeki tüm mevcut veri yedektekiyle değiştirilir. <strong>Birleştir:</strong> yedekteki kayıtlar mevcutlara eklenir (id ile tekrar önlenir).
             </div>
           )}
 
