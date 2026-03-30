@@ -7,6 +7,7 @@ import type { SoundSettings, SoundTheme, SoundType } from '@/hooks/useSoundFeedb
 import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
+import { getStoredHash, hashPass } from '@/components/LoginScreen';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
@@ -21,6 +22,7 @@ const TABS_LIST = [
   { id: 'repair', icon: '🔧', label: 'Veri Onarım' },
   { id: 'excel', icon: '📥', label: 'Excel İçe Aktar' },
   { id: 'data', icon: '🗄️', label: 'Veri Yönetimi' },
+  { id: 'security', icon: '🔐', label: 'Güvenlik' },
 ] as const;
 
 type Tab = typeof TABS_LIST[number]['id'];
@@ -224,7 +226,105 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
           </Card>
         </div>
       )}
+
+      {tab === 'security' && (
+        <SecurityPanel showToast={showToast} />
+      )}
     </div>
+  );
+}
+
+function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [oldPass, setOldPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [newPass2, setNewPass2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const PASS_KEY = 'sobaYonetim_appPass';
+
+  const handleChange = async () => {
+    if (!oldPass) { showToast('Mevcut parolayı girin!', 'error'); return; }
+    if (newPass.length < 4) { showToast('Yeni parola en az 4 karakter olmalı!', 'error'); return; }
+    if (newPass !== newPass2) { showToast('Yeni parolalar eşleşmiyor!', 'error'); return; }
+
+    setLoading(true);
+    const oldHash = await hashPass(oldPass);
+    const stored = getStoredHash();
+
+    if (oldHash !== stored) {
+      showToast('Mevcut parola yanlış!', 'error');
+      setLoading(false);
+      setOldPass('');
+      return;
+    }
+
+    const newHash = await hashPass(newPass);
+    localStorage.setItem(PASS_KEY, newHash);
+    setOldPass('');
+    setNewPass('');
+    setNewPass2('');
+    setLoading(false);
+    showToast('Parola başarıyla değiştirildi!', 'success');
+  };
+
+  return (
+    <Card title="🔐 Parola Değiştir">
+      <div style={{ display: 'grid', gap: 14, maxWidth: 380 }}>
+        <div>
+          <label style={lbl}>Mevcut Parola</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showOld ? 'text' : 'password'}
+              value={oldPass}
+              onChange={e => setOldPass(e.target.value)}
+              placeholder="Mevcut parolanız"
+              style={{ ...inp, paddingRight: 44 }}
+            />
+            <button onClick={() => setShowOld(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.9rem' }}>
+              {showOld ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={lbl}>Yeni Parola</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showNew ? 'text' : 'password'}
+              value={newPass}
+              onChange={e => setNewPass(e.target.value)}
+              placeholder="En az 4 karakter"
+              style={{ ...inp, paddingRight: 44 }}
+            />
+            <button onClick={() => setShowNew(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.9rem' }}>
+              {showNew ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={lbl}>Yeni Parola (Tekrar)</label>
+          <input
+            type={showNew ? 'text' : 'password'}
+            value={newPass2}
+            onChange={e => setNewPass2(e.target.value)}
+            placeholder="Yeni parolayı tekrar girin"
+            style={inp}
+            onKeyDown={e => e.key === 'Enter' && handleChange()}
+          />
+        </div>
+
+        <button onClick={handleChange} disabled={loading} style={btnPrimary}>
+          {loading ? '⏳ Değiştiriliyor...' : '🔐 Parolayı Değiştir'}
+        </button>
+
+        <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '10px 14px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.6 }}>
+          💡 Parola değiştirildikten sonra mevcut oturumunuz devam eder. Diğer cihazlarda tekrar giriş yapmanız gerekecektir.
+        </div>
+      </div>
+    </Card>
   );
 }
 

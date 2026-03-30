@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 
 const PASS_KEY = 'sobaYonetim_appPass';
 const SESSION_KEY = 'sobaYonetim_session';
+const REMEMBER_KEY = 'sobaYonetim_remember';
 
-function getStoredHash(): string | null {
+export function getStoredHash(): string | null {
   return localStorage.getItem(PASS_KEY);
 }
 
-async function hashPass(pass: string): Promise<string> {
+export async function hashPass(pass: string): Promise<string> {
   const enc = new TextEncoder().encode(pass + 'solhan_soba_2026');
   const buf = await crypto.subtle.digest('SHA-256', enc);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -15,6 +16,14 @@ async function hashPass(pass: string): Promise<string> {
 
 function isSessionValid(): boolean {
   try {
+    // Kalıcı oturum (beni hatırla)
+    const remRaw = localStorage.getItem(REMEMBER_KEY);
+    if (remRaw) {
+      const { ts } = JSON.parse(remRaw);
+      if (Date.now() - ts < 30 * 24 * 60 * 60 * 1000) return true;
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+    // Geçici oturum
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return false;
     const { ts } = JSON.parse(raw);
@@ -22,8 +31,12 @@ function isSessionValid(): boolean {
   } catch { return false; }
 }
 
-function setSession() {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ts: Date.now() }));
+function setSession(remember: boolean) {
+  if (remember) {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ ts: Date.now() }));
+  } else {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ts: Date.now() }));
+  }
 }
 
 export function useAuth() {
@@ -33,8 +46,12 @@ export function useAuth() {
     return isSessionValid();
   });
 
-  const login = () => { setSession(); setAuthed(true); };
-  const logout = () => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false); };
+  const login = (remember = false) => { setSession(remember); setAuthed(true); };
+  const logout = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(REMEMBER_KEY);
+    setAuthed(false);
+  };
   const hasPassword = !!getStoredHash();
 
   return { authed, login, logout, hasPassword };
@@ -67,10 +84,11 @@ function Particle({ index }: { index: number }) {
   );
 }
 
-export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
+export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) => void }) {
   const [mode, setMode] = useState<'login' | 'setup'>(getStoredHash() ? 'login' : 'setup');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,7 +118,7 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
     const stored = getStoredHash();
     if (hashed === stored) {
       setSuccess(true);
-      setTimeout(() => onLogin(), 800);
+      setTimeout(() => onLogin(remember), 800);
     } else {
       setError('Yanlış parola!');
       doShake();
@@ -116,7 +134,7 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
     const hashed = await hashPass(pass);
     localStorage.setItem(PASS_KEY, hashed);
     setSuccess(true);
-    setTimeout(() => onLogin(), 800);
+    setTimeout(() => onLogin(remember), 800);
     setLoading(false);
   };
 
@@ -348,6 +366,18 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <span>⚠️</span> {error}
               </div>
             )}
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={e => setRemember(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: '#ff5722', cursor: 'pointer' }}
+              />
+              <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem' }}>
+                Beni hatırla <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.75rem' }}>(30 gün)</span>
+              </span>
+            </label>
 
             <button
               onClick={mode === 'login' ? handleLogin : handleSetup}
