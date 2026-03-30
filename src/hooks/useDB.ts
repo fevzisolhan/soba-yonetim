@@ -1,6 +1,11 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { DB, Kasa } from '@/types';
 import { genId } from '@/lib/utils-tr';
+
+// Firebase config
+const FIREBASE_PROJECT = 'pars-4850c';
+const FIREBASE_API_KEY = 'AIzaSyBL2_YIVMPBwojAfK7pzd2Eg5AG1sUyfig';
+const FIREBASE_DOC_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/sync/main?key=${FIREBASE_API_KEY}`;
 
 const STORAGE_KEY = 'sobaYonetim';
 
@@ -99,13 +104,66 @@ function saveToStorage(db: DB): boolean {
   }
 }
 
+// Firebase REST API - veriyi Firestore'a kaydet
+async function saveToFirebase(db: DB): Promise<void> {
+  try {
+    const payload = {
+      fields: {
+        data: { stringValue: JSON.stringify(db) },
+        version: { integerValue: String(db._version || 0) },
+        updatedAt: { stringValue: new Date().toISOString() },
+      }
+    };
+    await fetch(FIREBASE_DOC_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Sessizce hata yut, localStorage zaten kaydetti
+  }
+}
+
+// Firebase REST API - veriyi Firestore'dan oku
+async function loadFromFirebase(): Promise<DB | null> {
+  try {
+    const res = await fetch(FIREBASE_DOC_URL);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const raw = json?.fields?.data?.stringValue;
+    if (!raw) return null;
+    return JSON.parse(raw) as DB;
+  } catch {
+    return null;
+  }
+}
+
 export function useDB() {
   const [db, setDb] = useState<DB>(loadFromStorage);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Uygulama açılınca Firebase'den en güncel veriyi çek
+  useEffect(() => {
+    loadFromFirebase().then(cloudDb => {
+      if (!cloudDb) return;
+      const localDb = loadFromStorage();
+      // Hangisi daha yeni ise onu kullan
+      if ((cloudDb._version || 0) > (localDb._version || 0)) {
+        saveToStorage(cloudDb);
+        setDb(cloudDb);
+      }
+    });
+  }, []);
 
   const save = useCallback((updater: (prev: DB) => DB) => {
     setDb(prev => {
       const next = updater(prev);
       saveToStorage(next);
+      // Debounce: 1 saniye bekle sonra Firebase'e gönder
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      syncTimer.current = setTimeout(() => {
+        saveToFirebase(next);
+      }, 1000);
       return next;
     });
   }, []);
@@ -136,6 +194,7 @@ export function useDB() {
           const data = JSON.parse(e.target?.result as string);
           setDb(data);
           saveToStorage(data);
+          saveToFirebase(data);
           resolve(true);
         } catch {
           resolve(false);
@@ -145,7 +204,6 @@ export function useDB() {
     });
   }, []);
 
-  // Kasa bakiyeleri
   const getKasaBakiye = useCallback((kasaId: string) => {
     return db.kasa.filter(k => k.kasa === kasaId).reduce((sum, k) => {
       return sum + (k.type === 'gelir' ? k.amount : -k.amount);
