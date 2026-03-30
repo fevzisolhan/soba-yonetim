@@ -136,6 +136,7 @@ export interface Order {
   supplierId: string;
   items: OrderItem[];
   amount: number;
+  nakliye?: number;       // Nakliye maliyeti (ürün maliyetine dağıtılır)
   paidAmount: number;
   remainingAmount: number;
   payments: OrderPayment[];

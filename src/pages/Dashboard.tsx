@@ -187,15 +187,18 @@ export default function Dashboard({ db, onTabChange }: Props) {
     const outOfStock = db.products.filter(p => p.stock === 0).length;
     const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
 
-    const totalKasa = db.kasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-    const nakit = db.kasa.filter(k => k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-    const banka = db.kasa.filter(k => k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const activeKasa = db.kasa.filter(k => !k.deleted);
+    const totalKasa = activeKasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const nakit = activeKasa.filter(k => k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const banka = activeKasa.filter(k => k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
 
     const pendingOrders = db.orders.filter(o => o.status === 'bekliyor').length;
     const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalPayable = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const netSermaye = nakit + banka + totalReceivable - totalPayable;
     const stokDeger = db.products.reduce((s, p) => s + p.cost * p.stock, 0);
 
-    return { todayRevenue, todayProfit, todaySalesCount: todaySales.length, monthRevenue, monthProfit, outOfStock, lowStock, totalKasa, nakit, banka, pendingOrders, totalReceivable, stokDeger, revTrend };
+    return { todayRevenue, todayProfit, todaySalesCount: todaySales.length, monthRevenue, monthProfit, outOfStock, lowStock, totalKasa, nakit, banka, pendingOrders, totalReceivable, totalPayable, netSermaye, stokDeger, revTrend };
   }, [db]);
 
   const statCards: StatCardData[] = useMemo(() => [
@@ -408,6 +411,29 @@ export default function Dashboard({ db, onTabChange }: Props) {
     <div style={{ animation: 'fadeIn 0.3s ease', filter: `brightness(${prefs.brightness / 100})` }}>
       <ScrollableCards cards={statCards} onTabChange={onTabChange} />
 
+      {/* Gün Sonu Kontrol Formülü */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.06))', borderRadius: 16, border: '1px solid rgba(16,185,129,0.2)', padding: '18px 22px', marginBottom: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: '1.1rem' }}>⚖️</span>
+          <span style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.95rem' }}>Gün Sonu Dengesi</span>
+          <span style={{ marginLeft: 'auto', color: '#64748b', fontSize: '0.75rem' }}>Kasa + Banka + Alacak − Borç = Net Sermaye</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <FormulaItem label="Nakit Kasa" value={stats.nakit} color="#06b6d4" sign="+" />
+          <span style={{ color: '#334155', fontWeight: 700, fontSize: '1.1rem' }}>+</span>
+          <FormulaItem label="Banka" value={stats.banka} color="#6366f1" sign="+" />
+          <span style={{ color: '#334155', fontWeight: 700, fontSize: '1.1rem' }}>+</span>
+          <FormulaItem label="Müşteri Alacağı" value={stats.totalReceivable} color="#10b981" sign="+" />
+          <span style={{ color: '#ef4444', fontWeight: 700, fontSize: '1.1rem' }}>−</span>
+          <FormulaItem label="Tedarikçi Borcu" value={stats.totalPayable} color="#ef4444" sign="-" />
+          <span style={{ color: '#334155', fontWeight: 700, fontSize: '1.1rem' }}>=</span>
+          <div style={{ background: stats.netSermaye >= 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${stats.netSermaye >= 0 ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 10, padding: '10px 16px', textAlign: 'center' }}>
+            <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Net Sermaye</div>
+            <div style={{ color: stats.netSermaye >= 0 ? '#10b981' : '#ef4444', fontWeight: 900, fontSize: '1.2rem' }}>{formatMoney(stats.netSermaye)}</div>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: showSidePanel ? 'minmax(0, 1fr) 260px' : '1fr', gap: 18 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0, overflow: 'hidden' }}>
           {prefs.leftWidgets.map(id => {
@@ -581,6 +607,15 @@ function QuickStat({ label, value, color, icon }: { label: string; value: string
       <div style={{ width: 32, height: 32, background: `${color}15`, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{icon}</div>
       <span style={{ flex: 1, color: '#64748b', fontSize: '0.83rem' }}>{label}</span>
       <span style={{ fontWeight: 700, color, fontSize: '0.95rem' }}>{value}</span>
+    </div>
+  );
+}
+
+function FormulaItem({ label, value, color }: { label: string; value: number; color: string; sign: string }) {
+  return (
+    <div style={{ background: `${color}10`, border: `1px solid ${color}25`, borderRadius: 10, padding: '8px 14px', textAlign: 'center', minWidth: 110 }}>
+      <div style={{ color: '#475569', fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+      <div style={{ color, fontWeight: 800, fontSize: '1rem' }}>{formatMoney(value)}</div>
     </div>
   );
 }
