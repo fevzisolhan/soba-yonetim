@@ -3,7 +3,7 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
-import type { DB, Supplier, Order, OrderItem } from '@/types';
+import type { DB, Supplier, Order, OrderItem, Cari } from '@/types';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
@@ -13,6 +13,7 @@ export default function Suppliers({ db, save }: Props) {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [tab, setTab] = useState<'suppliers' | 'orders'>('suppliers');
+  const [catFilter, setCatFilter] = useState<'hepsi' | 'genel' | 'pelet' | 'boru'>('hepsi');
   const [supModal, setSupModal] = useState(false);
   const [orderModal, setOrderModal] = useState(false);
   const [form, setForm] = useState<Partial<Supplier>>(emptySupplier);
@@ -20,7 +21,6 @@ export default function Suppliers({ db, save }: Props) {
   const [search, setSearch] = useState('');
   const [selectedSup, setSelectedSup] = useState('');
 
-  // Order form
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderSupplierId, setOrderSupplierId] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
@@ -41,15 +41,31 @@ export default function Suppliers({ db, save }: Props) {
     const nowIso = new Date().toISOString();
     save(prev => {
       const suppliers = [...prev.suppliers];
+      let cari = [...prev.cari];
       if (editId) {
         const i = suppliers.findIndex(s => s.id === editId);
-        if (i >= 0) suppliers[i] = { ...suppliers[i], ...form, updatedAt: nowIso } as Supplier;
+        if (i >= 0) {
+          suppliers[i] = { ...suppliers[i], ...form, updatedAt: nowIso } as Supplier;
+          // Carini de güncelle
+          const ci = cari.findIndex(c => c.id === editId);
+          if (ci >= 0) cari[ci] = { ...cari[ci], name: form.name || cari[ci].name, phone: form.phone || cari[ci].phone, updatedAt: nowIso };
+        }
         showToast('Tedarikçi güncellendi!');
       } else {
-        suppliers.push({ id: genId(), createdAt: nowIso, updatedAt: nowIso, totalOrders: 0, totalAmount: 0, name: '', category: '', phone: '', ...form } as Supplier);
-        showToast('Tedarikçi eklendi!');
+        const newId = genId();
+        suppliers.push({ id: newId, createdAt: nowIso, updatedAt: nowIso, totalOrders: 0, totalAmount: 0, name: '', category: '', phone: '', ...form } as Supplier);
+        // Otomatik cari kaydı aç
+        const yeniCari: Cari = {
+          id: newId, createdAt: nowIso, updatedAt: nowIso,
+          name: form.name || '', type: 'tedarikci',
+          phone: form.phone || '', email: form.email || '',
+          address: form.address || '', taxNo: form.taxNo || '',
+          balance: 0,
+        };
+        cari.push(yeniCari);
+        showToast('Tedarikçi eklendi, cari kaydı otomatik açıldı!', 'success');
       }
-      return { ...prev, suppliers };
+      return { ...prev, suppliers, cari };
     });
     setSupModal(false);
   };
@@ -81,35 +97,50 @@ export default function Suppliers({ db, save }: Props) {
 
   const updateOrderStatus = (id: string, status: Order['status']) => {
     save(prev => {
-      const orders = prev.orders.map(o => {
-        if (o.id !== id) return o;
-        const updated = { ...o, status, updatedAt: new Date().toISOString() };
-        if (status === 'tamamlandi') {
-          const products = prev.products.map(p => {
-            const item = o.items.find(i => i.productId === p.id);
-            if (!item) return p;
-            const before = p.stock;
-            const after = p.stock + item.qty;
-            return { ...p, stock: after };
-          });
-          const stockMovements = [...prev.stockMovements, ...o.items.map(i => ({
-            id: genId(), productId: i.productId, productName: i.productName, type: 'giris' as const,
-            amount: i.qty, before: prev.products.find(p => p.id === i.productId)?.stock || 0,
-            after: (prev.products.find(p => p.id === i.productId)?.stock || 0) + i.qty, note: 'Sipariş alındı', date: new Date().toISOString(),
-          }))];
-          showToast('Sipariş tamamlandı, stoklar güncellendi!');
-          return { ...prev, orders: prev.orders.map(x => x.id === id ? updated : x), products, stockMovements };
-        }
-        return prev;
-      });
-      if (Array.isArray(orders)) return { ...prev, orders: prev.orders.map(o => o.id === id ? { ...o, status, updatedAt: new Date().toISOString() } : o) };
-      return orders as DB;
+      const order = prev.orders.find(o => o.id === id);
+      if (!order) return prev;
+      const updatedOrder = { ...order, status, updatedAt: new Date().toISOString() };
+      let newState = { ...prev, orders: prev.orders.map(o => o.id === id ? updatedOrder : o) };
+
+      if (status === 'tamamlandi') {
+        // Stok güncelle
+        const products = prev.products.map(p => {
+          const item = order.items.find(i => i.productId === p.id);
+          if (!item) return p;
+          return { ...p, stock: p.stock + item.qty };
+        });
+        const stockMovements = [...prev.stockMovements, ...order.items.map(i => ({
+          id: genId(), productId: i.productId, productName: i.productName, type: 'giris' as const,
+          amount: i.qty, before: prev.products.find(p => p.id === i.productId)?.stock || 0,
+          after: (prev.products.find(p => p.id === i.productId)?.stock || 0) + i.qty,
+          note: 'Sipariş alındı', date: new Date().toISOString(),
+        }))];
+
+        // Cari borç ekle
+        const cari = prev.cari.map(c => {
+          if (c.id === order.supplierId || (c.type === 'tedarikci' && c.name === prev.suppliers.find(s => s.id === order.supplierId)?.name)) {
+            return { ...c, balance: (c.balance || 0) + order.amount, updatedAt: new Date().toISOString() };
+          }
+          return c;
+        });
+
+        showToast('Sipariş tamamlandı! Stok ve cari güncellendi.');
+        newState = { ...newState, products, stockMovements, cari };
+      }
+      return newState;
     });
   };
 
-  let suppliers = db.suppliers;
-  if (search) suppliers = suppliers.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || (s.phone || '').includes(search));
-  if (selectedSup) suppliers = suppliers.filter(s => s.id === selectedSup);
+  // Tüm tedarikçileri birleştir (kategori etiketi ile)
+  const allSuppliers = [
+    ...db.suppliers.map(s => ({ ...s, _kat: 'genel' as const })),
+    ...(db.peletSuppliers || []).map(s => ({ id: s.id, name: s.name, phone: s.phone || '', email: s.email || '', address: s.address || '', category: 'Pelet', totalOrders: 0, totalAmount: 0, createdAt: s.createdAt, updatedAt: s.updatedAt, _kat: 'pelet' as const })),
+    ...(db.boruSuppliers || []).map(s => ({ id: s.id, name: s.name, phone: s.phone || '', email: s.email || '', address: s.address || '', category: 'Boru', totalOrders: 0, totalAmount: 0, createdAt: s.createdAt, updatedAt: s.updatedAt, _kat: 'boru' as const })),
+  ];
+
+  let filteredSuppliers = allSuppliers;
+  if (catFilter !== 'hepsi') filteredSuppliers = filteredSuppliers.filter(s => s._kat === catFilter);
+  if (search) filteredSuppliers = filteredSuppliers.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || (s.phone || '').includes(search));
 
   let orders = db.orders;
   if (selectedSup) orders = orders.filter(o => o.supplierId === selectedSup);
@@ -117,6 +148,8 @@ export default function Suppliers({ db, save }: Props) {
 
   const statusColor: Record<string, string> = { bekliyor: '#f59e0b', yolda: '#3b82f6', tamamlandi: '#10b981', iptal: '#ef4444' };
   const statusLabel: Record<string, string> = { bekliyor: '⏳ Bekliyor', yolda: '🚚 Yolda', tamamlandi: '✓ Tamamlandı', iptal: '✕ İptal' };
+  const catColors: Record<string, string> = { genel: '#ff5722', pelet: '#f59e0b', boru: '#3b82f6' };
+  const catLabels: Record<string, string> = { genel: '🏭 Genel', pelet: '🌾 Pelet', boru: '🔧 Boru' };
 
   return (
     <div>
@@ -135,12 +168,23 @@ export default function Suppliers({ db, save }: Props) {
             <button onClick={() => setOrderModal(true)} style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, color: '#60a5fa', padding: '10px 18px', fontWeight: 700, cursor: 'pointer' }}>📦 Sipariş Ver</button>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9' }} />
           </div>
+          {/* Kategori filtresi */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {(['hepsi', 'genel', 'pelet', 'boru'] as const).map(f => (
+              <button key={f} onClick={() => setCatFilter(f)} style={{ padding: '6px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: catFilter === f ? '#ff5722' : '#273548', color: catFilter === f ? '#fff' : '#94a3b8' }}>
+                {f === 'hepsi' ? '🔍 Hepsi' : catLabels[f]}
+              </button>
+            ))}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-            {suppliers.length === 0 ? (
+            {filteredSuppliers.length === 0 ? (
               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: '#64748b' }}>Tedarikçi bulunamadı</div>
-            ) : suppliers.map(s => (
+            ) : filteredSuppliers.map(s => (
               <div key={s.id} style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 18 }}>
-                <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>{s.name}</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                  <h4 style={{ fontWeight: 700, color: '#f1f5f9' }}>{s.name}</h4>
+                  <span style={{ background: `${catColors[s._kat]}22`, color: catColors[s._kat], borderRadius: 6, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 700 }}>{catLabels[s._kat]}</span>
+                </div>
                 <p style={{ color: '#64748b', fontSize: '0.82rem', marginBottom: 10 }}>{s.category || 'Genel'}</p>
                 {s.phone && <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>📞 {s.phone}</p>}
                 {s.email && <p style={{ color: '#94a3b8', fontSize: '0.82rem', marginBottom: 4 }}>📧 {s.email}</p>}
@@ -148,11 +192,13 @@ export default function Suppliers({ db, save }: Props) {
                   <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{s.totalOrders || 0} sipariş</span>
                   <span style={{ color: '#10b981', fontSize: '0.85rem', fontWeight: 700 }}>{formatMoney(s.totalAmount || 0)}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button onClick={() => { setSelectedSup(s.id); setTab('orders'); }} style={{ flex: 1, background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '7px 0', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>📦 Siparişler</button>
-                  <button onClick={() => { setForm({ ...s }); setEditId(s.id); setSupModal(true); }} style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '7px 10px', cursor: 'pointer' }}>✏️</button>
-                  <button onClick={() => deleteSupplier(s.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '7px 10px', cursor: 'pointer' }}>🗑️</button>
-                </div>
+                {s._kat === 'genel' && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button onClick={() => { setSelectedSup(s.id); setTab('orders'); }} style={{ flex: 1, background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '7px 0', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>📦 Siparişler</button>
+                    <button onClick={() => { setForm({ ...s }); setEditId(s.id); setSupModal(true); }} style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '7px 10px', cursor: 'pointer' }}>✏️</button>
+                    <button onClick={() => deleteSupplier(s.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '7px 10px', cursor: 'pointer' }}>🗑️</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
