@@ -38,7 +38,7 @@ export default function Butce({ db, save }: Props) {
   const startOfMonth = new Date(year, month, 1).toISOString();
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
-  const monthKasa = useMemo(() => db.kasa.filter(k => k.createdAt >= startOfMonth && k.createdAt <= endOfMonth), [db.kasa, startOfMonth, endOfMonth]);
+  const monthKasa = useMemo(() => db.kasa.filter(k => !k.deleted && k.createdAt >= startOfMonth && k.createdAt <= endOfMonth), [db.kasa, startOfMonth, endOfMonth]);
   const monthExpenses = monthKasa.filter(k => k.type === 'gider');
   const monthIncome = monthKasa.filter(k => k.type === 'gelir');
   const totalExpense = monthExpenses.reduce((s, k) => s + k.amount, 0);

@@ -37,7 +37,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
   }
 
   if (sheets.includes('stok')) {
-    const rows = db.products.map(p => ({
+    const rows = db.products.filter(p => !p.deleted).map(p => ({
       'Ürün Adı': p.name,
       'Kategori': p.category,
       'Marka': p.brand || '',
@@ -76,7 +76,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
   }
 
   if (sheets.includes('cari')) {
-    const rows = db.cari.map(c => ({
+    const rows = db.cari.filter(c => !c.deleted).map(c => ({
       'Ad': c.name,
       'Tür': c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi',
       'Vergi No': c.taxNo || '',
@@ -93,7 +93,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
   }
 
   if (sheets.includes('kasa')) {
-    const kasaEntries = db.kasa.filter(k => inDateRange(k.createdAt));
+    const kasaEntries = db.kasa.filter(k => !k.deleted && inDateRange(k.createdAt));
     const rows = kasaEntries.map(k => ({
       'Tarih': fmtDate(k.createdAt),
       'Tür': k.type === 'gelir' ? 'Gelir' : 'Gider',

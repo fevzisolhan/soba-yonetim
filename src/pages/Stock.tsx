@@ -17,7 +17,7 @@ export default function Stock({ db, save }: Props) {
   const [search, setSearch] = useState('');
   const [histSearch, setHistSearch] = useState('');
 
-  let products = db.products;
+  let products = db.products.filter(p => !p.deleted);
   if (search) products = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
   const sortedProducts = [...products].sort((a, b) => a.stock - b.stock);
 
@@ -51,14 +51,15 @@ export default function Stock({ db, save }: Props) {
     setAdjustModal(false);
   };
 
-  const totalValue = db.products.reduce((s, p) => s + p.cost * p.stock, 0);
-  const outOfStock = db.products.filter(p => p.stock === 0).length;
-  const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+  const activeProducts = db.products.filter(p => !p.deleted);
+  const totalValue = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
+  const outOfStock = activeProducts.filter(p => p.stock === 0).length;
+  const lowStock = activeProducts.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
 
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
-        <StatCard label="Toplam Ürün" value={String(db.products.length)} color="#3b82f6" />
+        <StatCard label="Toplam Ürün" value={String(activeProducts.length)} color="#3b82f6" />
         <StatCard label="Stok Değeri" value={`₺${(totalValue / 1000).toFixed(1)}K`} color="#10b981" />
         <StatCard label="Biten Stok" value={String(outOfStock)} color="#ef4444" />
         <StatCard label="Az Stok" value={String(lowStock)} color="#f59e0b" />
@@ -154,7 +155,7 @@ export default function Stock({ db, save }: Props) {
             <label style={lbl}>Ürün *</label>
             <select value={form.productId} onChange={e => setForm(f => ({ ...f, productId: e.target.value }))} style={inp}>
               <option value="">-- Ürün Seç --</option>
-              {db.products.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>)}
+              {activeProducts.map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock})</option>)}
             </select>
           </div>
           <div>
