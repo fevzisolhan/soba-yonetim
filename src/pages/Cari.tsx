@@ -19,6 +19,8 @@ export default function Cari({ db, save }: Props) {
   const [form, setForm] = useState<Partial<CariType>>(empty);
   const [editId, setEditId] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [islemModal, setIslemModal] = useState<{ cariId: string; cariName: string; type: 'musteri' | 'tedarikci' } | null>(null);
+  const [islemForm, setIslemForm] = useState({ amount: '', kasa: 'nakit', description: '' });
 
   let cari = db.cari;
   if (filter !== 'all') cari = cari.filter(c => c.type === filter);
@@ -47,6 +49,37 @@ export default function Cari({ db, save }: Props) {
       return { ...prev, cari };
     });
     setModalOpen(false);
+  };
+
+  const handleIslem = () => {
+    if (!islemModal) return;
+    const amount = parseFloat(islemForm.amount);
+    if (!amount || amount <= 0) { showToast('Geçerli tutar girin!', 'error'); return; }
+    const nowIso = new Date().toISOString();
+    const isTahsilat = islemModal.type === 'musteri'; // müşteriden tahsilat = gelir; tedarikçiye ödeme = gider
+    const kasaType = isTahsilat ? 'gelir' as const : 'gider' as const;
+    const category = isTahsilat ? 'tahsilat' : 'tedarik';
+    const desc = islemForm.description || (isTahsilat ? `Tahsilat: ${islemModal.cariName}` : `Ödeme: ${islemModal.cariName}`);
+
+    save(prev => {
+      const kasaEntry = {
+        id: genId(), type: kasaType, category, amount,
+        kasa: islemForm.kasa, description: desc,
+        cariId: islemModal.cariId, relatedId: islemModal.cariId,
+        createdAt: nowIso, updatedAt: nowIso,
+      };
+      // Her iki durumda da cari bakiye azalır (alacak tahsil edildi / borç ödendi)
+      const cari = prev.cari.map(c =>
+        c.id === islemModal.cariId
+          ? { ...c, balance: (c.balance || 0) - amount, lastTransaction: nowIso, updatedAt: nowIso }
+          : c
+      );
+      return { ...prev, kasa: [...prev.kasa, kasaEntry], cari };
+    });
+
+    showToast(isTahsilat ? `Tahsilat kaydedildi: ${formatMoney(amount)}` : `Ödeme kaydedildi: ${formatMoney(amount)}`, 'success');
+    setIslemModal(null);
+    setIslemForm({ amount: '', kasa: 'nakit', description: '' });
   };
 
   const handleDelete = (id: string) => {
@@ -108,6 +141,13 @@ export default function Cari({ db, save }: Props) {
                 <td style={{ padding: '12px 16px', color: '#64748b', fontSize: '0.82rem' }}>{c.lastTransaction ? formatDate(c.lastTransaction) : '-'}</td>
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                    {c.balance > 0 && (
+                      <button
+                        onClick={() => { setIslemModal({ cariId: c.id, cariName: c.name, type: c.type }); setIslemForm({ amount: '', kasa: 'nakit', description: '' }); }}
+                        style={{ background: c.type === 'musteri' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', border: 'none', borderRadius: 6, color: c.type === 'musteri' ? '#10b981' : '#f59e0b', padding: '5px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                        {c.type === 'musteri' ? '💰 Tahsilat' : '💸 Öde'}
+                      </button>
+                    )}
                     <button onClick={() => openEdit(c)} style={{ background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 6, color: '#60a5fa', padding: '5px 10px', cursor: 'pointer', fontSize: '0.82rem' }}>✏️</button>
                     <button onClick={() => handleDelete(c.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 6, color: '#ef4444', padding: '5px 10px', cursor: 'pointer', fontSize: '0.82rem' }}>🗑️</button>
                   </div>
@@ -154,8 +194,48 @@ export default function Cari({ db, save }: Props) {
         </div>
       </Modal>
 
+      {/* Tahsilat / Ödeme Modalı */}
+      {islemModal && (
+        <Modal open={!!islemModal} onClose={() => setIslemModal(null)} title={islemModal.type === 'musteri' ? `💰 Tahsilat — ${islemModal.cariName}` : `💸 Ödeme — ${islemModal.cariName}`}>
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div>
+              <label style={lbl}>Tutar (₺) *</label>
+              <input type="number" value={islemForm.amount} min={0} step={0.01} placeholder="0,00"
+                onChange={e => setIslemForm(f => ({ ...f, amount: e.target.value }))} style={inp} autoFocus />
+            </div>
+            <div>
+              <label style={lbl}>Kasa / Hesap</label>
+              <select value={islemForm.kasa} onChange={e => setIslemForm(f => ({ ...f, kasa: e.target.value }))} style={inp}>
+                {(db.kasalar || [{ id: 'nakit', name: 'Nakit', icon: '💵' }, { id: 'banka', name: 'Banka', icon: '🏦' }]).map(k => (
+                  <option key={k.id} value={k.id}>{k.icon} {k.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={lbl}>Açıklama</label>
+              <input value={islemForm.description} onChange={e => setIslemForm(f => ({ ...f, description: e.target.value }))} style={inp}
+                placeholder={islemModal.type === 'musteri' ? 'Tahsilat açıklaması...' : 'Ödeme açıklaması...'} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <button onClick={handleIslem} style={{ flex: 1, background: islemModal.type === 'musteri' ? '#10b981' : '#f59e0b', border: 'none', borderRadius: 10, color: '#fff', padding: '11px 0', fontWeight: 700, cursor: 'pointer' }}>
+              💾 {islemModal.type === 'musteri' ? 'Tahsilatı Kaydet' : 'Ödemeyi Kaydet'}
+            </button>
+            <button onClick={() => setIslemModal(null)} style={{ background: '#273548', border: '1px solid #334155', borderRadius: 10, color: '#94a3b8', padding: '11px 20px', cursor: 'pointer' }}>İptal</button>
+          </div>
+        </Modal>
+      )}
+
       {detail && (
         <Modal open={!!detailId} onClose={() => { setDetailId(null); setHistTab('kasa'); }} title={`📋 ${detail.name}`} maxWidth={680}>
+          {/* Hızlı işlem butonu */}
+          {detail.balance > 0 && (
+            <button
+              onClick={() => { setIslemModal({ cariId: detail.id, cariName: detail.name, type: detail.type }); setIslemForm({ amount: String(detail.balance), kasa: 'nakit', description: '' }); }}
+              style={{ width: '100%', marginBottom: 14, padding: '10px 0', background: detail.type === 'musteri' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', border: `1px solid ${detail.type === 'musteri' ? 'rgba(16,185,129,0.4)' : 'rgba(245,158,11,0.4)'}`, borderRadius: 10, color: detail.type === 'musteri' ? '#10b981' : '#f59e0b', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem' }}>
+              {detail.type === 'musteri' ? `💰 Tahsilat Al — Bakiye: ${formatMoney(detail.balance)}` : `💸 Ödeme Yap — Borç: ${formatMoney(detail.balance)}`}
+            </button>
+          )}
           {/* Stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
             {[
