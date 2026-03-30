@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { formatMoney } from '@/lib/utils-tr';
 import type { DB } from '@/types';
+import DOMPurify from 'dompurify';
 
 interface Props { db: DB; }
 
@@ -96,7 +97,8 @@ function MarkdownText({ text }: { text: string }) {
     .replace(/(<li[^>]*>.*<\/li>\n?)+/gs, '<ul style="list-style:none;padding:0;margin:6px 0">$&</ul>')
     .replace(/\n\n/g, '<br/>')
     .replace(/\n/g, '<br/>');
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+  const safeHtml = DOMPurify.sanitize(html);
+  return <span dangerouslySetInnerHTML={{ __html: safeHtml }} />;
 }
 
 const API_BASE = '';
