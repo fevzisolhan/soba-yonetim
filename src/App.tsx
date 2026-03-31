@@ -14,8 +14,6 @@ import Bank from '@/pages/Bank';
 import Reports from '@/pages/Reports';
 import Stock from '@/pages/Stock';
 import Monitor from '@/pages/Monitor';
-import Pelet from '@/pages/Pelet';
-import BoruTed from '@/pages/BoruTed';
 import Partners from '@/pages/Partners';
 import Settings from '@/pages/Settings';
 import AIAsistan from '@/pages/AIAsistan';
@@ -44,8 +42,6 @@ const TABS = [
   { id: 'sales', label: 'Satış', icon: '🛒', group: 'Ana' },
   { id: 'fatura', label: 'Fatura', icon: '🧾', group: 'Ana' },
   { id: 'suppliers', label: 'Tedarikçi', icon: '🏭', group: 'Tedarik' },
-  { id: 'pelet', label: 'Pelet', icon: '🪵', group: 'Tedarik' },
-  { id: 'boruTed', label: 'Boru Ted.', icon: '🔩', group: 'Tedarik' },
   { id: 'cari', label: 'Cari', icon: '👤', group: 'Finans' },
   { id: 'kasa', label: 'Kasa', icon: '💰', group: 'Finans' },
   { id: 'butce', label: 'Bütçe', icon: '📊', group: 'Finans' },
@@ -250,7 +246,7 @@ function GlobalSearch({ onNavigate, db }: { onNavigate: (tab: TabId) => void; db
   );
 }
 
-function FAB({ db, save }: { db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save'] }) {
+function FAB({ db, save, onOpenAI }: { db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save']; onOpenAI: () => void }) {
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<'sale' | 'gelir' | 'gider' | 'product' | null>(null);
 
@@ -266,6 +262,16 @@ function FAB({ db, save }: { db: ReturnType<typeof useDB>['db']; save: ReturnTyp
   return (
     <>
       {open && <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 149 }} />}
+      {/* AI Floating Button — sol alt */}
+      <button
+        onClick={onOpenAI}
+        title="AI Asistan"
+        style={{ position: 'fixed', bottom: 28, left: 28, zIndex: 150, width: 52, height: 52, borderRadius: '50%', border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', cursor: 'pointer', fontSize: '1.3rem', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 28px rgba(99,102,241,0.5)', transition: 'transform 0.2s' }}
+        onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.1)')}
+        onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+      >
+        🤖
+      </button>
       <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 150, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
         {open && actions.map((a, i) => (
           <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, animation: `slideUp 0.2s ease ${i * 0.04}s both` }}>
@@ -442,8 +448,6 @@ function AppContent() {
           {activeTab === 'sales' && <Sales db={db} save={save} />}
           {activeTab === 'fatura' && <Fatura db={db} save={save} />}
           {activeTab === 'suppliers' && <Suppliers db={db} save={save} />}
-          {activeTab === 'pelet' && <Pelet db={db} save={save} />}
-          {activeTab === 'boruTed' && <BoruTed db={db} save={save} />}
           {activeTab === 'cari' && <Cari db={db} save={save} />}
           {activeTab === 'kasa' && <Kasa db={db} save={save} />}
           {activeTab === 'butce' && <Butce db={db} save={save} />}
@@ -460,7 +464,7 @@ function AppContent() {
       </div>
 
       {/* FAB */}
-      <FAB db={db} save={save} />
+      <FAB db={db} save={save} onOpenAI={() => navigate('ai')} />
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

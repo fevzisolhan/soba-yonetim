@@ -1,9 +1,31 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
 import type { DB, Supplier, Order, OrderItem, Cari } from '@/types';
+
+// Türkçe normalize + benzerlik skoru (0-1)
+function normalizeTR(s: string) {
+  return s.toLowerCase()
+    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .replace(/[^a-z0-9 ]/g, '').trim();
+}
+function similarity(a: string, b: string): number {
+  const na = normalizeTR(a), nb = normalizeTR(b);
+  if (na === nb) return 1;
+  if (na.includes(nb) || nb.includes(na)) return 0.85;
+  const wordsA = new Set(na.split(' ').filter(Boolean));
+  const wordsB = new Set(nb.split(' ').filter(Boolean));
+  const common = [...wordsA].filter(w => wordsB.has(w)).length;
+  if (common > 0) return common / Math.max(wordsA.size, wordsB.size) * 0.9;
+  // Bigram
+  const bigrams = (s: string) => { const b: Set<string> = new Set(); for (let i = 0; i < s.length - 1; i++) b.add(s.slice(i, i + 2)); return b; };
+  const ba = bigrams(na), bb = bigrams(nb);
+  const inter = [...ba].filter(x => bb.has(x)).length;
+  return (2 * inter) / (ba.size + bb.size);
+}
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
@@ -20,6 +42,8 @@ export default function Suppliers({ db, save }: Props) {
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedSup, setSelectedSup] = useState('');
+  const [dupWarning, setDupWarning] = useState<{ name: string; score: number }[]>([]);
+  const [forceSave, setForceSave] = useState(false);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderSupplierId, setOrderSupplierId] = useState('');
@@ -37,8 +61,29 @@ export default function Suppliers({ db, save }: Props) {
     });
   };
 
+  const checkDuplicates = (name: string) => {
+    if (!name) return;
+    const candidates = [
+      ...db.suppliers.filter(s => !editId || s.id !== editId),
+      ...(db.peletSuppliers || []),
+      ...(db.boruSuppliers || []),
+    ];
+    const found = candidates
+      .map(s => ({ name: s.name, score: similarity(name, s.name) }))
+      .filter(x => x.score >= 0.6)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+    setDupWarning(found);
+    setForceSave(false);
+  };
+
   const saveSupplier = () => {
     if (!form.name) { showToast('Tedarikçi adı gerekli!', 'error'); return; }
+    if (dupWarning.length > 0 && !forceSave) {
+      setForceSave(true); // İkinci tıkta zorla kaydet
+      return;
+    }
+    setDupWarning([]); setForceSave(false);
     const nowIso = new Date().toISOString();
     save(prev => {
       const suppliers = [...prev.suppliers];
@@ -72,7 +117,14 @@ export default function Suppliers({ db, save }: Props) {
   };
 
   const saveOrder = () => {
-    if (!orderSupplierId) { showToast('Tedarikçi seçin!', 'error'); return; }
+    if (!orderSupplierId) {
+      if (db.suppliers.length === 0) {
+        showToast('Önce tedarikçi ekleyin! Tedarikçiler sekmesine yönlendiriliyorsunuz...', 'error');
+        setTimeout(() => { setOrderModal(false); setTab('suppliers'); }, 1500);
+        return;
+      }
+      showToast('Tedarikçi seçin!', 'error'); return;
+    }
     if (orderItems.length === 0) { showToast('Ürün ekleyin!', 'error'); return; }
     const amount = orderItems.reduce((s, i) => s + i.lineTotal, 0);
     const nowIso = new Date().toISOString();
@@ -269,7 +321,19 @@ export default function Suppliers({ db, save }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={lbl}>Ad *</label>
-            <input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp} />
+            <input value={form.name || ''} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setDupWarning([]); setForceSave(false); }} onBlur={e => checkDuplicates(e.target.value)} style={inp} />
+            {dupWarning.length > 0 && (
+              <div style={{ marginTop: 8, background: forceSave ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${forceSave ? 'rgba(245,158,11,0.4)' : 'rgba(239,68,68,0.4)'}`, borderRadius: 8, padding: '10px 12px' }}>
+                <p style={{ color: forceSave ? '#f59e0b' : '#ef4444', fontWeight: 700, fontSize: '0.82rem', marginBottom: 4 }}>
+                  {forceSave ? '⚠️ Yine de kaydetmek için tekrar "Kaydet" a tıklayın' : '🔴 Benzer tedarikçiler bulundu:'}
+                </p>
+                {dupWarning.map((d, i) => (
+                  <p key={i} style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '2px 0' }}>
+                    • {d.name} <span style={{ color: d.score >= 0.9 ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>(%{Math.round(d.score * 100)} benzerlik)</span>
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
           <div><label style={lbl}>Kategori</label><input value={form.category || ''} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={inp} /></div>
           <div><label style={lbl}>Telefon</label><input value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={inp} /></div>
@@ -279,7 +343,9 @@ export default function Suppliers({ db, save }: Props) {
           <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Not</label><textarea value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} style={{ ...inp, minHeight: 60 }} /></div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button onClick={saveSupplier} style={{ flex: 1, background: '#10b981', border: 'none', borderRadius: 10, color: '#fff', padding: '11px 0', fontWeight: 700, cursor: 'pointer' }}>💾 Kaydet</button>
+          <button onClick={saveSupplier} style={{ flex: 1, background: forceSave ? '#f59e0b' : '#10b981', border: 'none', borderRadius: 10, color: '#fff', padding: '11px 0', fontWeight: 700, cursor: 'pointer' }}>
+            {forceSave ? '⚠️ Yine de Kaydet' : '💾 Kaydet'}
+          </button>
           <button onClick={() => setSupModal(false)} style={{ background: '#273548', border: '1px solid #334155', borderRadius: 10, color: '#94a3b8', padding: '11px 20px', cursor: 'pointer' }}>İptal</button>
         </div>
       </Modal>
