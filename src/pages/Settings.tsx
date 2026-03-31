@@ -7,10 +7,12 @@ import type { SoundSettings, SoundTheme, SoundType } from '@/hooks/useSoundFeedb
 import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
+import { type LoginTheme, LOGIN_THEME_KEY } from '@/components/LoginScreen';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
 const TABS_LIST = [
+  { id: 'gorunum', icon: '🎨', label: 'Görünüm' },
   { id: 'company', icon: '🏢', label: 'Şirket' },
   { id: 'pellet', icon: '🪵', label: 'Pelet' },
   { id: 'sound', icon: '🔊', label: 'Ses' },
@@ -51,7 +53,16 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
   const { playSound } = useSoundFeedback();
   const [company, setCompany] = useState({ ...db.company });
   const [pellet, setPellet] = useState({ ...db.pelletSettings });
-  const [tab, setTab] = useState<Tab>('company');
+  const [tab, setTab] = useState<Tab>('gorunum');
+  const [loginTheme, setLoginTheme] = useState<LoginTheme>(
+    () => (localStorage.getItem(LOGIN_THEME_KEY) as LoginTheme) || 'ates'
+  );
+
+  const changeTheme = (t: LoginTheme) => {
+    setLoginTheme(t);
+    localStorage.setItem(LOGIN_THEME_KEY, t);
+    showToast(`Tema değiştirildi! Giriş ekranında da geçerli.`, 'success');
+  };
 
   const saveCompany = () => {
     save(prev => ({ ...prev, company: { ...company, id: prev.company.id, createdAt: prev.company.createdAt } }));
@@ -102,6 +113,52 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
           </button>
         ))}
       </div>
+
+      {tab === 'gorunum' && (
+        <Card title="🎨 Giriş Ekranı Teması">
+          <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: 20, lineHeight: 1.6 }}>
+            Seçilen tema hem giriş ekranında hem de bir sonraki oturumda geçerli olur.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
+            {([
+              { id: 'ates',    name: '🔥 Ateş',    dot: '#ff5722', bg: 'linear-gradient(135deg,#1a0800,#2d1100)', border: '#ff5722', desc: 'Turuncu, dinamik' },
+              { id: 'cam',     name: '💠 Cam',     dot: '#00bcd4', bg: 'linear-gradient(135deg,#020f1e,#061525)', border: '#00bcd4', desc: 'Cyan, glassmorphism' },
+              { id: 'buz',     name: '❄️ Buz',     dot: '#90caf9', bg: 'linear-gradient(135deg,#e8f4f8,#dde8f0)', border: '#90caf9', desc: 'Açık, buz mavisi' },
+              { id: 'minimal', name: '⬛ Minimal', dot: '#94a3b8', bg: 'linear-gradient(135deg,#0c0c0c,#1a1a1a)', border: '#334155', desc: 'Siyah, sade' },
+            ] as { id: LoginTheme; name: string; dot: string; bg: string; border: string; desc: string }[]).map(t => {
+              const active = loginTheme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => changeTheme(t.id)}
+                  style={{
+                    background: t.bg, border: `2px solid ${active ? t.dot : 'rgba(255,255,255,0.08)'}`,
+                    borderRadius: 16, padding: '20px 14px', cursor: 'pointer', textAlign: 'center',
+                    boxShadow: active ? `0 0 20px ${t.dot}44, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
+                    transition: 'all 0.2s', transform: active ? 'scale(1.04)' : 'scale(1)',
+                    position: 'relative', overflow: 'hidden',
+                  }}
+                >
+                  {active && (
+                    <div style={{ position: 'absolute', top: 8, right: 8, background: t.dot, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: '#fff', fontWeight: 800 }}>✓</div>
+                  )}
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: t.dot, margin: '0 auto 10px', boxShadow: `0 4px 16px ${t.dot}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+                    {t.name.split(' ')[0]}
+                  </div>
+                  <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>{t.name.split(' ').slice(1).join(' ')}</div>
+                  <div style={{ color: '#64748b', fontSize: '0.72rem' }}>{t.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 20, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: '12px 16px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.6 }}>
+            💡 Tema değişikliği anında kaydedilir. Giriş ekranına döndüğünüzde yeni tema aktif olur.
+            <br />Aktif tema: <strong style={{ color: '#818cf8' }}>{
+              { ates: '🔥 Ateş', cam: '💠 Cam', buz: '❄️ Buz', minimal: '⬛ Minimal' }[loginTheme]
+            }</strong>
+          </div>
+        </Card>
+      )}
 
       {tab === 'company' && (
         <Card title="🏢 Şirket Bilgileri">
