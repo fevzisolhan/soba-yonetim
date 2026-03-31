@@ -145,16 +145,22 @@ export default function KontrolHalkasi({ db }: Props) {
     <div style={{ paddingBottom: 40 }}>
       {/* Başlık */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 160 }}>
           <h2 style={{ color: '#f1f5f9', fontWeight: 900, fontSize: '1.1rem', margin: 0 }}>⚡ Canlı Muhasebe Kontrol Halkası</h2>
           <p style={{ color: '#475569', fontSize: '0.78rem', margin: '4px 0 0' }}>Tüm kanallar gerçek zamanlı izleniyor</p>
         </div>
-        {[{ count: errCount, color: '#ef4444', label: 'Kritik' }, { count: warnCount, color: '#f59e0b', label: 'Uyarı' }, { count: okCount, color: '#22c55e', label: 'Tamam' }].map(b => (
-          <div key={b.label} style={{ background: `${b.color}18`, border: `1px solid ${b.color}44`, borderRadius: 8, padding: '6px 14px', textAlign: 'center' }}>
-            <div style={{ color: b.color, fontWeight: 900, fontSize: '1.1rem', lineHeight: 1 }}>{b.count}</div>
-            <div style={{ color: `${b.color}99`, fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', marginTop: 2 }}>{b.label}</div>
-          </div>
-        ))}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { count: errCount,  color: '#ef4444', label: 'Kritik', icon: '🔴' },
+            { count: warnCount, color: '#f59e0b', label: 'Uyarı',  icon: '🟡' },
+            { count: okCount,   color: '#22c55e', label: 'Tamam',  icon: '🟢' },
+          ].map(b => (
+            <div key={b.label} style={{ background: `${b.color}18`, border: `1px solid ${b.color}44`, borderRadius: 10, padding: '8px 16px', textAlign: 'center', minWidth: 64 }}>
+              <div style={{ color: b.color, fontWeight: 900, fontSize: '1.3rem', lineHeight: 1 }}>{b.count}</div>
+              <div style={{ color: `${b.color}cc`, fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', marginTop: 3, letterSpacing: '0.04em' }}>{b.icon} {b.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Net Sermaye Bandı */}
@@ -187,8 +193,8 @@ export default function KontrolHalkasi({ db }: Props) {
       </div>
 
       {/* Halka */}
-      <div style={{ display: 'flex', justifyContent: 'center', overflowX: 'auto' }}>
-        <div style={{ position: 'relative', width: 780, height: 780, flexShrink: 0 }}>
+      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+        <div style={{ position: 'relative', width: 780, height: 780, margin: '0 auto', flexShrink: 0 }}>
           {/* SVG bağlantılar */}
           <svg style={{ position: 'absolute', inset: 0, width: 780, height: 780, pointerEvents: 'none' }}>
             {CONNECTIONS.map(([fromId, toId], i) => {
@@ -227,11 +233,12 @@ export default function KontrolHalkasi({ db }: Props) {
                 background: c.bg, border: `2px solid ${c.border}`,
                 boxShadow: `0 0 ${st === 'err' ? 20 : 12}px ${c.border}55, 0 4px 14px rgba(0,0,0,0.5)`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                padding: '0 12px',
                 transition: 'all 0.4s ease',
-                animation: st === 'err' ? 'halka-pulse 1.5s infinite' : undefined,
+                animation: st === 'err' ? 'halka-pulse 1.5s infinite' : st === 'warn' ? 'halka-warn 2s infinite' : undefined,
               }}>
-                <div style={{ color: c.text, fontWeight: 800, fontSize: '0.7rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{node.label}</div>
-                <div style={{ color: `${c.text}99`, fontSize: '0.63rem', marginTop: 2, maxWidth: 132, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getSub(node.id)}</div>
+                <div style={{ color: c.text, fontWeight: 800, fontSize: '0.62rem', letterSpacing: '0.05em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>{node.label}</div>
+                <div style={{ color: `${c.text}bb`, fontSize: '0.6rem', marginTop: 3, maxWidth: 130, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{getSub(node.id)}</div>
                 <div style={{ position: 'absolute', top: 7, right: 11, width: 8, height: 8, borderRadius: '50%', background: c.dot, boxShadow: `0 0 6px ${c.dot}` }} />
               </div>
             );
@@ -243,6 +250,10 @@ export default function KontrolHalkasi({ db }: Props) {
         @keyframes halka-pulse {
           0%, 100% { box-shadow: 0 0 20px #ef444466, 0 4px 14px rgba(0,0,0,.5); }
           50%       { box-shadow: 0 0 36px #ef4444bb, 0 4px 20px rgba(0,0,0,.6); }
+        }
+        @keyframes halka-warn {
+          0%, 100% { box-shadow: 0 0 12px #f59e0b44, 0 4px 14px rgba(0,0,0,.5); }
+          50%       { box-shadow: 0 0 22px #f59e0b88, 0 4px 18px rgba(0,0,0,.6); }
         }
       `}</style>
     </div>

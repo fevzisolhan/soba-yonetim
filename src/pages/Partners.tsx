@@ -16,7 +16,7 @@ export default function Partners({ db, save }: Props) {
   const [modal, setModal] = useState(false);
   const [emanetModal, setEmanetModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<Partner>>({ name: '', share: 50, phone: '', note: '' });
+  const [form, setForm] = useState<Partial<Partner>>({ name: '', share: undefined, phone: '', note: '' });
   const [emanetForm, setEmanetForm] = useState({ partnerId: '', amount: '', note: '' });
 
   const partners: Partner[] = (db as any).partners || [];
@@ -32,7 +32,7 @@ export default function Partners({ db, save }: Props) {
         if (i >= 0) arr[i] = { ...arr[i], ...form };
         showToast('Ortak güncellendi!');
       } else {
-        arr.push({ id: genId(), createdAt: nowIso, name: '', share: 50, ...form });
+        arr.push({ id: genId(), createdAt: nowIso, name: '', ...form });
         showToast('Ortak eklendi!');
       }
       return { ...prev, partners: arr };
@@ -64,7 +64,7 @@ export default function Partners({ db, save }: Props) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-        <button onClick={() => { setForm({ name: '', share: 50, phone: '', note: '' }); setEditId(null); setModal(true); }} style={{ background: '#ff5722', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }}>+ Ortak Ekle</button>
+        <button onClick={() => { setForm({ name: '', share: undefined, phone: '', note: '' }); setEditId(null); setModal(true); }} style={{ background: '#ff5722', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }}>+ Ortak Ekle</button>
         <button onClick={() => setEmanetModal(true)} style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, color: '#60a5fa', padding: '10px 16px', cursor: 'pointer', fontWeight: 600 }}>💰 Emanet Kaydet</button>
       </div>
 
@@ -73,8 +73,8 @@ export default function Partners({ db, save }: Props) {
         <p style={{ color: '#10b981', fontSize: '1.5rem', fontWeight: 800 }}>{formatMoney(totalProfit)}</p>
         {partners.map(p => (
           <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-            <span style={{ color: '#94a3b8' }}>{p.name} (%{p.share})</span>
-            <span style={{ color: '#10b981', fontWeight: 700 }}>{formatMoney(totalProfit * (p.share / 100))}</span>
+            <span style={{ color: '#94a3b8' }}>{p.name}{p.share != null ? ` (%${p.share})` : ''}</span>
+            <span style={{ color: '#10b981', fontWeight: 700 }}>{p.share != null ? formatMoney(totalProfit * (p.share / 100)) : '—'}</span>
           </div>
         ))}
       </div>
@@ -90,10 +90,10 @@ export default function Partners({ db, save }: Props) {
           return (
             <div key={p.id} style={{ background: '#1e293b', borderRadius: 12, border: '1px solid #334155', padding: 18 }}>
               <h4 style={{ fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>🤝 {p.name}</h4>
-              <p style={{ color: '#ff5722', fontSize: '1rem', fontWeight: 700, marginBottom: 8 }}>%{p.share} pay</p>
+              <p style={{ color: '#ff5722', fontSize: '1rem', fontWeight: 700, marginBottom: 8 }}>{p.share != null ? `%${p.share} pay` : 'Pay belirtilmedi'}</p>
               {p.phone && <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: 4 }}>📞 {p.phone}</p>}
               <p style={{ color: '#64748b', fontSize: '0.82rem' }}>Toplam emanet: <strong style={{ color: '#f59e0b' }}>{formatMoney(totalEmanet)}</strong></p>
-              <p style={{ color: '#64748b', fontSize: '0.82rem' }}>Kâr payı: <strong style={{ color: '#10b981' }}>{formatMoney(totalProfit * (p.share / 100))}</strong></p>
+              <p style={{ color: '#64748b', fontSize: '0.82rem' }}>Kâr payı: <strong style={{ color: '#10b981' }}>{p.share != null ? formatMoney(totalProfit * (p.share / 100)) : '—'}</strong></p>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                 <button onClick={() => { setForm({ ...p }); setEditId(p.id); setModal(true); }} style={{ flex: 1, background: 'rgba(59,130,246,0.1)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '7px 0', cursor: 'pointer', fontSize: '0.82rem' }}>✏️</button>
                 <button onClick={() => deletePartner(p.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '7px 10px', cursor: 'pointer' }}>🗑️</button>
@@ -135,7 +135,15 @@ export default function Partners({ db, save }: Props) {
       <Modal open={modal} onClose={() => setModal(false)} title={editId ? '✏️ Ortak Düzenle' : '➕ Yeni Ortak'}>
         <div style={{ display: 'grid', gap: 14 }}>
           <div><label style={lbl}>Ad *</label><input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inp} /></div>
-          <div><label style={lbl}>Hisse Oranı (%)</label><input type="number" value={form.share || 50} onChange={e => setForm(f => ({ ...f, share: parseFloat(e.target.value) || 0 }))} style={inp} min={0} max={100} /></div>
+          <div>
+            <label style={lbl}>Hisse Oranı (%) <span style={{ color: '#475569', fontWeight: 400 }}>— isteğe bağlı</span></label>
+            <input
+              type="number"
+              value={form.share ?? ''}
+              onChange={e => setForm(f => ({ ...f, share: e.target.value === '' ? undefined : parseFloat(e.target.value) }))}
+              style={inp} min={0} max={100} placeholder="Boş bırakılabilir"
+            />
+          </div>
           <div><label style={lbl}>Telefon</label><input value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={inp} /></div>
           <div><label style={lbl}>Not</label><textarea value={form.note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} style={{ ...inp, minHeight: 50 }} /></div>
         </div>
