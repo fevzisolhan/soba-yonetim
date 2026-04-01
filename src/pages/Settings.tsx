@@ -505,7 +505,7 @@ function ExcelExportPanel({ db }: { db: DB }) {
 function ActivityPanel({ db, save, showToast, showConfirm }: {
   db: DB;
   save: (fn: (prev: DB) => DB) => void;
-  showToast: (m: string, t?: string) => void;
+  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const [typeFilter, setTypeFilter] = useState('all');
@@ -601,7 +601,7 @@ const RESTORE_SECTIONS = [
 ] as const;
 
 function SelectiveRestore({ showToast, showConfirm }: {
-  showToast: (m: string, t?: string) => void;
+  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -855,7 +855,7 @@ function detectCsvColumns(headers: string[]): CsvColumnMapping[] {
 function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
   db: DB;
   save: (fn: (prev: DB) => DB) => void;
-  showToast: (m: string, t?: string) => void;
+  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1370,7 +1370,7 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
   );
 }
 
-function VeriOnarim({ db, save, showToast, showConfirm }: { db: DB; save: (fn: (prev: DB) => DB) => void; showToast: (m: string, t?: string) => void; showConfirm: (title: string, msg: string, onOk: () => void, danger?: boolean) => void }) {
+function VeriOnarim({ db, save, showToast, showConfirm }: { db: DB; save: (fn: (prev: DB) => DB) => void; showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void; showConfirm: (title: string, msg: string, onOk: () => void, danger?: boolean) => void }) {
   const [results, setResults] = useState<string[]>([]);
 
   const diagnose = () => {

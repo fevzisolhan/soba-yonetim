@@ -443,7 +443,7 @@ function AppContent() {
 
         {/* CONTENT */}
         <main style={{ flex: 1, padding: isMobile ? '14px 10px' : '22px 24px', boxSizing: 'border-box', overflowX: 'hidden' }}>
-          {activeTab === 'dashboard' && <Dashboard db={db} onTabChange={navigate} />}
+          {activeTab === 'dashboard' && <Dashboard db={db} onTabChange={(tab) => navigate(tab as TabId)} />}
           {activeTab === 'products' && <Products db={db} save={save} />}
           {activeTab === 'sales' && <Sales db={db} save={save} />}
           {activeTab === 'fatura' && <Fatura db={db} save={save} />}

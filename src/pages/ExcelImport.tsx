@@ -157,12 +157,15 @@ export default function ExcelImport({ db, save }: Props) {
         if (opts.sales && preview.sales.length > 0) {
           const newSales = preview.sales.map(s => {
             const cari = newDB.cari.find(c => c.name.trim().toLowerCase() === s.customer.trim().toLowerCase());
+            const unitPrice = s.qty > 0 ? Math.round(s.total / s.qty) : s.total;
             return {
-              id: genId(), productName: s.product, productId: '',
-              quantity: s.qty, price: s.qty > 0 ? Math.round(s.total / s.qty) : s.total,
-              total: s.total, payment: 'cari' as const,
+              id: genId(), productName: s.product, productId: '' as string,
+              quantity: s.qty, unitPrice, cost: 0,
+              discount: 0, discountAmount: 0, subtotal: s.total,
+              total: s.total, profit: 0, payment: 'cari' as const,
               customerName: s.customer, cariId: cari?.id,
-              description: `[Excel] ${s.product}`, status: 'completed' as const,
+              items: [{ productId: '', productName: s.product, quantity: s.qty, unitPrice, cost: 0, total: s.total }],
+              status: 'tamamlandi' as const,
               createdAt: s.date, updatedAt: s.date,
             };
           });

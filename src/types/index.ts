@@ -3,6 +3,10 @@
 export interface Partner {
   id: string;
   name: string;
+  share?: number;
+  phone?: string;
+  note?: string;
+  createdAt: string;
 }
 
 // ─── Ürün ────────────────────────────────────────────────────────────────────
@@ -50,7 +54,7 @@ export interface Sale {
   total: number;
   profit: number;
   payment: 'nakit' | 'kart' | 'havale' | 'cari';
-  status: 'tamamlandi' | 'iade' | 'iptal';
+  status: 'tamamlandi' | 'iade' | 'iptal' | 'completed';
   items: SaleItem[];
   returnedAt?: string;
   deleted?: boolean;
@@ -136,7 +140,7 @@ export interface Order {
   supplierId: string;
   items: OrderItem[];
   amount: number;
-  nakliye?: number;       // Nakliye maliyeti (ürün maliyetine dağıtılır)
+  nakliye?: number;
   paidAmount: number;
   remainingAmount: number;
   payments: OrderPayment[];
@@ -186,7 +190,7 @@ export interface StockMovement {
   id: string;
   productId: string;
   productName: string;
-  type: 'satis' | 'iade' | 'giris';
+  type: 'satis' | 'iade' | 'giris' | 'cikis' | 'duzeltme';
   amount: number;
   before: number;
   after: number;
@@ -246,11 +250,24 @@ export interface BoruOrder {
 }
 
 // ─── Bütçe ───────────────────────────────────────────────────────────────────
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  icon: string;
+  monthlyLimit: number;
+  color: string;
+  kasaCategories: string[];
+}
+
 export interface Budget {
   id: string;
   name: string;
+  icon?: string;
   category: string;
   amount: number;
+  monthlyLimit?: number;
+  color?: string;
+  kasaCategories?: string[];
   spent: number;
   period: string;
   createdAt: string;
@@ -275,8 +292,12 @@ export interface BankTransaction {
   date: string;
   description: string;
   amount: number;
-  type: 'credit' | 'debit';
+  type: 'credit' | 'debit' | 'income' | 'expense';
+  status?: 'unmatched' | 'matched' | 'confirmed';
   matchedId?: string;
+  matchedCariId?: string;
+  matchScore?: number;
+  updatedAt?: string;
   createdAt: string;
 }
 
@@ -316,9 +337,21 @@ export interface OrtakEmanet {
   partnerId: string;
   description: string;
   amount: number;
+  note?: string;
   type: 'emanet' | 'iade';
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+}
+
+// ─── Şirket ──────────────────────────────────────────────────────────────────
+export interface Company {
+  id: string;
+  name?: string;
+  taxNo?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  createdAt: string;
 }
 
 // ─── Veritabanı (Kök) ────────────────────────────────────────────────────────
@@ -341,12 +374,14 @@ export interface DB {
   boruSuppliers: BoruSupplier[];
   boruOrders: BoruOrder[];
   invoices: Invoice[];
-  budgets: Budget[];
+  budgets: BudgetCategory[];
   returns: unknown[];
   _activityLog: ActivityLog[];
-  company: { id: string; createdAt: string };
+  company: Company;
   settings: Record<string, unknown>;
   pelletSettings: { gramaj: number; kgFiyat: number; cuvalKg: number; critDays: number };
   ortakEmanetler: OrtakEmanet[];
   installments: Installment[];
+  partners?: Partner[];
 }
+

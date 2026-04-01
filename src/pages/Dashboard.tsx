@@ -6,7 +6,7 @@ import type { DB } from '@/types';
 
 interface Props {
   db: DB;
-  onTabChange: (tab: string) => void;
+  onTabChange: (tab: string) => void; // string kabul eder, App.tsx TabId ile uyumlu
 }
 
 interface StatCardData {

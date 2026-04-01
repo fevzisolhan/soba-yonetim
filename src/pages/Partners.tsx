@@ -52,7 +52,11 @@ export default function Partners({ db, save }: Props) {
     const nowIso = new Date().toISOString();
     save(prev => ({
       ...prev,
-      ortakEmanetler: [...(prev.ortakEmanetler || []), { id: genId(), partnerId: emanetForm.partnerId, amount: parseFloat(emanetForm.amount), note: emanetForm.note, createdAt: nowIso }],
+      ortakEmanetler: [...(prev.ortakEmanetler || []), {
+        id: genId(), partnerId: emanetForm.partnerId, amount: parseFloat(emanetForm.amount),
+        note: emanetForm.note, description: emanetForm.note || 'Emanet',
+        type: 'emanet' as const, createdAt: nowIso, updatedAt: nowIso,
+      }],
     }));
     showToast('Emanet kaydedildi!');
     setEmanetForm({ partnerId: '', amount: '', note: '' });
