@@ -3,6 +3,7 @@ import { useDB } from '@/hooks/useDB';
 import { useToast } from '@/components/Toast';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { Toaster } from 'sonner';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import LoginScreen, { useAuth } from '@/components/LoginScreen';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Products';
@@ -503,6 +504,7 @@ export default function App() {
     <ConfirmProvider>
       <AppContent />
       <Toaster richColors position="bottom-right" />
+      <SpeedInsights />
     </ConfirmProvider>
   );
 }

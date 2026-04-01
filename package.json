@@ -72,6 +72,7 @@
     "zod": "^3.25.76"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^2.0.0",
     "xlsx": "^0.18.5"
   }
 }
