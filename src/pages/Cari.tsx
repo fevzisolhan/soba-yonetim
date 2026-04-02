@@ -106,7 +106,27 @@ export default function Cari({ db, save }: Props) {
           ? { ...c, balance: (c.balance || 0) - amount, lastTransaction: nowIso, updatedAt: nowIso }
           : c
       );
-      return { ...prev, kasa: [...prev.kasa, kasaEntry], cari };
+
+      // Ortak cari ise → kasadan çekim ortakEmanetler'e de yazılır
+      const cariRec = prev.cari.find(c => c.id === islemModal.cariId);
+      let ortakEmanetler = prev.ortakEmanetler || [];
+      if (cariRec?.ortak && cariRec?.partnerId && kasaType === 'gider') {
+        ortakEmanetler = [
+          ...ortakEmanetler,
+          {
+            id: genId(),
+            partnerId: cariRec.partnerId,
+            description: desc || `Kasadan çekim: ${islemModal.cariName}`,
+            amount,
+            note: `Kasa: ${islemForm.kasa}`,
+            type: 'emanet' as const,
+            createdAt: nowIso,
+            updatedAt: nowIso,
+          }
+        ];
+      }
+
+      return { ...prev, kasa: [...prev.kasa, kasaEntry], cari, ortakEmanetler };
     });
 
     showToast(isTahsilat ? `Tahsilat kaydedildi: ${formatMoney(amount)}` : `Ödeme kaydedildi: ${formatMoney(amount)}`, 'success');
