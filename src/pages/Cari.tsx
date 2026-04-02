@@ -201,6 +201,7 @@ export default function Cari({ db, save }: Props) {
                   <span style={{ background: c.type === 'musteri' ? 'rgba(59,130,246,0.15)' : 'rgba(245,158,11,0.15)', color: c.type === 'musteri' ? '#60a5fa' : '#f59e0b', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem', fontWeight: 600 }}>
                     {c.type === 'musteri' ? '👤 Müşteri' : '🏭 Tedarikçi'}
                   </span>
+                  {c.ortak && <span style={{ marginLeft: 6, background: 'rgba(168,85,247,0.15)', color: '#a78bfa', borderRadius: 6, padding: '2px 7px', fontSize: '0.75rem', fontWeight: 600 }}>🤝 Ortak</span>}
                 </td>
                 <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{c.phone || '-'}</td>
                 <td style={{ padding: '12px 16px', fontWeight: 700, color: c.balance > 0 ? '#10b981' : c.balance < 0 ? '#ef4444' : '#64748b' }}>{formatMoney(Math.abs(c.balance))}{c.balance > 0 ? ' ↑' : c.balance < 0 ? ' ↓' : ''}</td>
