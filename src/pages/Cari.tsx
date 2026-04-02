@@ -135,8 +135,16 @@ export default function Cari({ db, save }: Props) {
   };
 
   const handleDelete = (id: string) => {
-    showConfirm('Cari Sil', 'Bu cari kaydını silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, cari: prev.cari.filter(c => c.id !== id) }));
+    // İlişkili kayıt kontrolü
+    const relatedSales = db.sales.filter(s => !s.deleted && (s.customerId === id || s.cariId === id));
+    const relatedKasa = db.kasa.filter(k => !k.deleted && k.cariId === id);
+    const hasRelated = relatedSales.length > 0 || relatedKasa.length > 0;
+    const msg = hasRelated
+      ? `Bu cariye ait ${relatedSales.length} satış ve ${relatedKasa.length} kasa kaydı var. Silinen cari gizlenecek ancak geçmiş kayıtlar korunacak.`
+      : 'Bu cari kaydını silmek istediğinizden emin misiniz?';
+    showConfirm('Cari Sil', msg, () => {
+      const nowIso = new Date().toISOString();
+      save(prev => ({ ...prev, cari: prev.cari.map(c => c.id === id ? { ...c, deleted: true, updatedAt: nowIso } : c) }));
       showToast('Cari silindi!', 'success');
     });
   };

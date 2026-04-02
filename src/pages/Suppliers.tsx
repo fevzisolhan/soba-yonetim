@@ -144,8 +144,14 @@ export default function Suppliers({ db, save }: Props) {
   };
 
   const deleteSupplier = (id: string) => {
-    showConfirm('Tedarikçi Sil', 'Silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, suppliers: prev.suppliers.filter(s => s.id !== id) }));
+    showConfirm('Tedarikçi Sil', 'Tedarikçi ve ilişkili cari kaydı gizlenecek. Devam etmek istiyor musunuz?', () => {
+      const nowIso = new Date().toISOString();
+      save(prev => ({
+        ...prev,
+        suppliers: prev.suppliers.map(s => s.id === id ? { ...s, deleted: true, updatedAt: nowIso } : s),
+        // Aynı ID ile açılmış cari kaydını da soft-delete et
+        cari: prev.cari.map(c => c.id === id ? { ...c, deleted: true, updatedAt: nowIso } : c),
+      }));
       showToast('Silindi!');
     });
   };
@@ -201,7 +207,7 @@ export default function Suppliers({ db, save }: Props) {
 
   // Tüm tedarikçileri birleştir (kategori etiketi ile)
   const allSuppliers = [
-    ...db.suppliers.map(s => ({ ...s, _kat: 'genel' as const })),
+    ...db.suppliers.filter(s => !s.deleted).map(s => ({ ...s, _kat: 'genel' as const })),
     ...(db.peletSuppliers || []).map(s => ({ id: s.id, name: s.name, phone: s.phone || '', email: s.email || '', address: s.address || '', category: 'Pelet', totalOrders: 0, totalAmount: 0, createdAt: s.createdAt, updatedAt: s.updatedAt, _kat: 'pelet' as const })),
     ...(db.boruSuppliers || []).map(s => ({ id: s.id, name: s.name, phone: s.phone || '', email: s.email || '', address: s.address || '', category: 'Boru', totalOrders: 0, totalAmount: 0, createdAt: s.createdAt, updatedAt: s.updatedAt, _kat: 'boru' as const })),
   ];

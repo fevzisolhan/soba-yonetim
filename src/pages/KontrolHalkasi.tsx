@@ -70,19 +70,19 @@ export default function KontrolHalkasi({ db }: Props) {
     const posY      = kasaBal(db.kasa, 'pos_yk');
     const totalKasa = nakit + banka + posZ + posI + posY;
 
-    const outOfStock = db.products.filter(p => p.stock === 0).length;
-    const lowStock   = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
-    const totalStock = db.products.reduce((s, p) => s + p.stock, 0);
+    const outOfStock = db.products.filter(p => !p.deleted && p.stock === 0).length;
+    const lowStock   = db.products.filter(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock).length;
+    const totalStock = db.products.filter(p => !p.deleted).reduce((s, p) => s + p.stock, 0);
 
     const today = new Date().toDateString();
-    const todaySales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
+    const todaySales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
 
     const pendingOrders   = db.orders.filter(o => o.status === 'bekliyor').length;
     const inTransit       = db.orders.filter(o => o.status === 'yolda').length;
     const completedToday  = db.orders.filter(o => o.status === 'tamamlandi' && new Date(o.updatedAt).toDateString() === today).length;
 
-    const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-    const totalPayable    = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalPayable    = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
 
     const ortakCekim    = (db.ortakEmanetler || []).filter(e => e.type === 'emanet').reduce((s, e) => s + e.amount, 0);
     const ortakTahsilat = (db.ortakEmanetler || []).filter(e => e.type === 'iade').reduce((s, e) => s + e.amount, 0);

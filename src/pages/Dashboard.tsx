@@ -170,17 +170,17 @@ export default function Dashboard({ db, onTabChange }: Props) {
 
   const stats = useMemo(() => {
     const today = new Date().toDateString();
-    const todaySales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
+    const todaySales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
     const todayRevenue = todaySales.reduce((s, sale) => s + sale.total, 0);
     const todayProfit = todaySales.reduce((s, sale) => s + sale.profit, 0);
 
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yestSales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === yesterday.toDateString());
+    const yestSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === yesterday.toDateString());
     const yestRevenue = yestSales.reduce((s, sale) => s + sale.total, 0);
     const revTrend = yestRevenue > 0 ? ((todayRevenue - yestRevenue) / yestRevenue) * 100 : 0;
 
     const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
-    const monthSales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt) >= monthStart);
+    const monthSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt) >= monthStart);
     const monthRevenue = monthSales.reduce((s, sale) => s + sale.total, 0);
     const monthProfit = monthSales.reduce((s, sale) => s + sale.profit, 0);
 
@@ -193,8 +193,8 @@ export default function Dashboard({ db, onTabChange }: Props) {
     const banka = activeKasa.filter(k => k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
 
     const pendingOrders = db.orders.filter(o => o.status === 'bekliyor').length;
-    const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-    const totalPayable = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalPayable = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
     const netSermaye = nakit + banka + totalReceivable - totalPayable;
     const stokDeger = db.products.filter(p => !p.deleted).reduce((s, p) => s + p.cost * p.stock, 0);
 
@@ -219,7 +219,7 @@ export default function Dashboard({ db, onTabChange }: Props) {
       const key = d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
       days[key] = { revenue: 0, profit: 0, count: 0 };
     }
-    db.sales.filter(s => s.status === 'tamamlandi').forEach(s => {
+    db.sales.filter(s => !s.deleted && s.status === 'tamamlandi').forEach(s => {
       const diff = Math.floor((Date.now() - new Date(s.createdAt).getTime()) / 86400000);
       if (diff <= 6) {
         const key = new Date(s.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
@@ -231,7 +231,7 @@ export default function Dashboard({ db, onTabChange }: Props) {
 
   const categoryRevenue = useMemo(() => {
     const map: Record<string, number> = {};
-    db.sales.filter(s => s.status === 'tamamlandi').forEach(s => {
+    db.sales.filter(s => !s.deleted && s.status === 'tamamlandi').forEach(s => {
       const cat = s.productCategory || 'Diğer';
       map[cat] = (map[cat] || 0) + s.total;
     });
@@ -295,9 +295,9 @@ export default function Dashboard({ db, onTabChange }: Props) {
           <WidgetCard title="📊 Hızlı Özet" subtitle="Genel durum">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <QuickStat label="Toplam Ürün" value={String(db.products.filter(p => !p.deleted).length)} color="#3b82f6" icon="📦" />
-              <QuickStat label="Toplam Satış" value={String(db.sales.filter(s => s.status === 'tamamlandi').length)} color="#10b981" icon="🛒" />
+              <QuickStat label="Toplam Satış" value={String(db.sales.filter(s => !s.deleted && s.status === 'tamamlandi').length)} color="#10b981" icon="🛒" />
               <QuickStat label="Tedarikçi" value={String(db.suppliers.length)} color="#f59e0b" icon="🏭" />
-              <QuickStat label="Cari Müşteri" value={String(db.cari.filter(c => c.type === 'musteri').length)} color="#8b5cf6" icon="👤" />
+              <QuickStat label="Cari Müşteri" value={String(db.cari.filter(c => !c.deleted && c.type === 'musteri').length)} color="#8b5cf6" icon="👤" />
               <QuickStat label="Bek. Sipariş" value={String(stats.pendingOrders)} color="#ef4444" icon="📋" />
             </div>
           </WidgetCard>
@@ -557,13 +557,13 @@ function Oneriler({ db, onTabChange }: { db: DB; onTabChange: (tab: string) => v
     const lowStock = db.products.filter(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock);
     if (outStock.length > 0) list.push({ icon: '⚠️', text: `${outStock.length} ürün stok bitti: ${outStock.slice(0, 2).map(p => p.name).join(', ')}${outStock.length > 2 ? '...' : ''}`, action: 'Ürünlere Git', tab: 'products', level: 'warn' });
     if (lowStock.length > 0) list.push({ icon: '📦', text: `${lowStock.length} üründe az stok uyarısı var`, action: 'Stoka Git', tab: 'stock', level: 'warn' });
-    const toplar = db.cari.filter(c => c.type === 'musteri' && c.balance > 0);
+    const toplar = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0);
     if (toplar.length > 0) list.push({ icon: '💳', text: `${toplar.length} müşteride toplam ${toplar.reduce((s, c) => s + c.balance, 0).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' })} alacak var`, action: 'Cari Hesaplar', tab: 'cari', level: 'info' });
     const pendingOrders = db.orders.filter(o => o.status === 'bekliyor');
     if (pendingOrders.length > 0) list.push({ icon: '🚚', text: `${pendingOrders.length} bekleyen sipariş var`, action: 'Tedarikçilere Git', tab: 'suppliers', level: 'info' });
     const unmatched = db.bankTransactions.filter(t => t.status === 'unmatched');
     if (unmatched.length > 0) list.push({ icon: '🏦', text: `${unmatched.length} banka işlemi eşleştirilmemiş`, action: 'Bankaya Git', tab: 'bank', level: 'info' });
-    const todaySales = db.sales.filter(s => new Date(s.createdAt).toDateString() === new Date().toDateString() && s.status === 'tamamlandi');
+    const todaySales = db.sales.filter(s => !s.deleted && new Date(s.createdAt).toDateString() === new Date().toDateString() && s.status === 'tamamlandi');
     if (todaySales.length === 0 && db.products.length > 0) list.push({ icon: '💡', text: 'Bugün henüz satış yapılmadı. Hızlı satış için + butonunu kullanın.', action: 'Satışlara Git', tab: 'sales', level: 'ok' });
     if (db.products.length === 0) list.push({ icon: '🏁', text: 'Başlamak için önce ürün ekleyin.', action: 'Ürün Ekle', tab: 'products', level: 'ok' });
     return list.slice(0, 4);

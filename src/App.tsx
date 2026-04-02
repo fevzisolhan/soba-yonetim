@@ -597,6 +597,18 @@ function AppContent() {
         @media (max-width: 480px) {
           .stat-grid { grid-template-columns: 1fr !important; }
         }
+        @media print {
+          body { background: #fff !important; }
+          aside, header, .fab-container, [data-sonner-toaster] { display: none !important; }
+          div[style*="position: fixed"][style*="zIndex: 9000"] > div { 
+            position: static !important; max-height: none !important; max-width: none !important;
+            box-shadow: none !important; border: none !important; background: #fff !important;
+          }
+          div[style*="position: fixed"][style*="zIndex: 9000"] {
+            position: static !important; background: transparent !important; backdrop-filter: none !important;
+          }
+          * { color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
       `}</style>
     </div>
   );
