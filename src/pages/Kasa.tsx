@@ -23,11 +23,12 @@ export default function Kasa({ db, save }: Props) {
 
   const catLabels: Record<string, string> = {
     satis: '🛒 Satış', tahsilat: '💰 Tahsilat', diger_gelir: '➕ Diğer Gelir',
+    ortak_tahsilat: '🤝 Ortak Tahsilat',
     tedarik: '🏭 Tedarik', kira: '🏠 Kira', maas: '👤 Maaş',
     fatura: '📄 Fatura', nakliye: '🚛 Nakliye', diger_gider: '➖ Diğer Gider',
     iade: '🔄 İade',
   };
-  const [form, setForm] = useState({ amount: '', description: '', kasa: 'nakit', cariId: '', category: '' });
+  const [form, setForm] = useState({ amount: '', description: '', kasa: 'nakit', cariId: '', partnerId: '', category: '' });
 
   const kasalar = db.kasalar || [{ id: 'nakit', name: 'Nakit', icon: '💵' }, { id: 'banka', name: 'Banka', icon: '🏦' }];
 
@@ -54,6 +55,7 @@ export default function Kasa({ db, save }: Props) {
   const saveEntry = (type: 'gelir' | 'gider') => {
     const amount = parseFloat(form.amount);
     if (!amount || amount <= 0) { showToast('Geçerli tutar girin!', 'error'); return; }
+    if (form.category === 'ortak_tahsilat' && !form.partnerId) { showToast('Ortak tahsilat için ortak seçin!', 'error'); return; }
     const nowIso = new Date().toISOString();
     const entry = {
       id: genId(), type, category: form.category || (type === 'gelir' ? 'diger_gelir' : 'diger_gider'),
@@ -63,16 +65,24 @@ export default function Kasa({ db, save }: Props) {
     save(prev => {
       let cari = prev.cari;
       if (form.cariId) {
-        // Gelir (tahsilat): müşteri ödedi → alacak azalır (balance -)
-        // Gider (ödeme): tedarikçiye ödedik → borç azalır (balance -)
-        // Her iki durumda da cari bakiye düşer
         cari = cari.map(c => c.id === form.cariId ? { ...c, balance: (c.balance || 0) - amount, lastTransaction: nowIso, updatedAt: nowIso } : c);
       }
-      return { ...prev, kasa: [...prev.kasa, entry], cari };
+      // Ortak tahsilatı → ortakEmanetler'e de yaz
+      let ortakEmanetler = prev.ortakEmanetler || [];
+      if (form.partnerId && entry.category === 'ortak_tahsilat') {
+        ortakEmanetler = [...ortakEmanetler, {
+          id: genId(), partnerId: form.partnerId, amount,
+          note: form.description || 'Kasa tahsilatı',
+          description: form.description || 'Kasa tahsilatı',
+          type: 'emanet' as const,
+          createdAt: nowIso, updatedAt: nowIso,
+        }];
+      }
+      return { ...prev, kasa: [...prev.kasa, entry], cari, ortakEmanetler };
     });
     playSound(type === 'gelir' ? 'success' : 'notification');
     showToast(`${type === 'gelir' ? 'Gelir' : 'Gider'} kaydedildi!`, 'success');
-    setForm({ amount: '', description: '', kasa: 'nakit', cariId: '', category: '' });
+    setForm({ amount: '', description: '', kasa: 'nakit', cariId: '', partnerId: '', category: '' });
     setIncomeModal(false);
     setExpenseModal(false);
   };
@@ -103,7 +113,7 @@ export default function Kasa({ db, save }: Props) {
     });
   };
 
-  const incomeCategories = ['satis', 'tahsilat', 'diger_gelir'];
+  const incomeCategories = ['satis', 'tahsilat', 'ortak_tahsilat', 'diger_gelir'];
   const expenseCategories = ['tedarik', 'kira', 'maas', 'fatura', 'nakliye', 'diger_gider'];
 
   const EntryModal = ({ type, open, onClose }: { type: 'gelir' | 'gider'; open: boolean; onClose: () => void }) => (
@@ -133,6 +143,17 @@ export default function Kasa({ db, save }: Props) {
             {db.cari.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
+        {type === 'gelir' && form.category === 'ortak_tahsilat' && (
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Ortak *</label>
+            <select value={form.partnerId} onChange={e => setForm(f => ({ ...f, partnerId: e.target.value }))} style={inp}>
+              <option value="">-- Ortak Seç --</option>
+              {((db as any).partners || []).map((p: {id:string;name:string}) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div style={{ gridColumn: '1/-1' }}>
           <label style={lbl}>Açıklama</label>
           <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} placeholder="Açıklama..." />
