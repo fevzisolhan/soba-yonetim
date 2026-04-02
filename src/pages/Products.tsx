@@ -20,7 +20,7 @@ export default function Products({ db, save }: Props) {
   const [form, setForm] = useState<Partial<Product>>(empty);
   const [editId, setEditId] = useState<string | null>(null);
 
-  let products = db.products;
+  let products = db.products.filter(p => !p.deleted);
   if (filter === 'zero') products = products.filter(p => p.stock === 0);
   else if (filter === 'low') products = products.filter(p => p.stock > 0 && p.stock <= p.minStock);
   else if (filter !== 'all') products = products.filter(p => p.category === filter);
@@ -50,23 +50,38 @@ export default function Products({ db, save }: Props) {
 
   const handleDelete = (id: string) => {
     showConfirm('Ürünü Sil', 'Bu ürünü silmek istediğinizden emin misiniz?', () => {
-      save(prev => ({ ...prev, products: prev.products.filter(p => p.id !== id) }));
+      const nowIso = new Date().toISOString();
+      save(prev => ({ ...prev, products: prev.products.map(p => p.id === id ? { ...p, deleted: true, updatedAt: nowIso } : p) }));
       showToast('Ürün silindi!', 'success');
     });
   };
 
   const f = (k: keyof Product, v: unknown) => setForm(prev => ({ ...prev, [k]: v }));
 
-  const totalValue = db.products.reduce((s, p) => s + p.cost * p.stock, 0);
-  const outOfStock = db.products.filter(p => p.stock === 0).length;
-  const lowStock = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+  const activeProducts = db.products.filter(p => !p.deleted);
+  const totalValue = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
+  const outOfStock = activeProducts.filter(p => p.stock === 0).length;
+  const lowStock = activeProducts.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+  const siparisOnerisi = activeProducts.filter(p => p.stock <= p.minStock);
 
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
         <button onClick={openAdd} style={{ background: '#ff5722', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 20px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}>+ Yeni Ürün</button>
+        <button onClick={() => { const rows = activeProducts.map(p => ({ Ad: p.name, Kategori: p.category, Marka: p.brand || '', 'Alış': p.cost, 'Satış': p.price, Stok: p.stock, 'Min Stok': p.minStock, Barkod: p.barcode || '' })); (window as any).__exportToExcel?.(rows, 'urun-listesi'); showToast('Excel hazırlanıyor...', 'info'); }} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#818cf8', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📊 Excel</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ürün ara..." style={{ flex: 1, minWidth: 200, padding: '10px 14px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', fontSize: '0.9rem' }} />
       </div>
+
+      {siparisOnerisi.length > 0 && (
+        <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ color: '#fcd34d', fontWeight: 700, fontSize: '0.88rem' }}>{siparisOnerisi.length} ürün sipariş gerektirir: </span>
+            <span style={{ color: '#94a3b8', fontSize: '0.82rem' }}>{siparisOnerisi.slice(0, 4).map(p => p.name).join(', ')}{siparisOnerisi.length > 4 ? ` +${siparisOnerisi.length - 4} daha` : ''}</span>
+          </div>
+          <button onClick={() => setFilter('low')} style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, color: '#f59e0b', padding: '6px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Listele →</button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <Chip label="Tümü" active={filter === 'all'} onClick={() => setFilter('all')} />
