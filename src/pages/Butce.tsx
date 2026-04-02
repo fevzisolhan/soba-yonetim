@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -33,7 +34,16 @@ export default function Butce({ db, save }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Omit<BudgetCategory, 'id'>>({ name: '', icon: '📋', monthlyLimit: 0, color: '#64748b', kasaCategories: [] });
 
-  const budgets = db.budgets || [];
+  const yearlyData = useMemo(() => {
+    return Array.from({ length: 12 }, (_, m) => {
+      const start = new Date(year, m, 1).toISOString();
+      const end = new Date(year, m + 1, 0, 23, 59, 59).toISOString();
+      const monthKasa = db.kasa.filter(k => !k.deleted && k.createdAt >= start && k.createdAt <= end);
+      const gelir = monthKasa.filter(k => k.type === 'gelir').reduce((s, k) => s + k.amount, 0);
+      const gider = monthKasa.filter(k => k.type === 'gider').reduce((s, k) => s + k.amount, 0);
+      return { name: MONTHS[m].slice(0, 3), gelir, gider, net: gelir - gider };
+    });
+  }, [db.kasa, year]);
 
   const startOfMonth = new Date(year, month, 1).toISOString();
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
@@ -75,7 +85,7 @@ export default function Butce({ db, save }: Props) {
         const toAdd = PRESET_CATEGORIES.filter(p => !existing.some(e => e.name === p.name));
         return { ...prev, budgets: [...existing, ...toAdd.map(p => ({ ...p, id: genId() }))] };
       });
-      showToast(`${PRESET_CATEGORIES.length} kategori eklendi!`);
+      showToast(`${PRESET_CATEGORIES.length} kategori eklendi!`, 'success');
     });
   };
 
@@ -94,14 +104,14 @@ export default function Butce({ db, save }: Props) {
       }
       return { ...prev, budgets };
     });
-    showToast(editId ? 'Güncellendi!' : 'Kategori eklendi!');
+    showToast(editId ? 'Güncellendi!' : 'Kategori eklendi!', 'success');
     setModal(false);
   };
 
   const deleteCat = (id: string) => {
     showConfirm('Sil', 'Bu bütçe kategorisi silinecek!', () => {
       save(prev => ({ ...prev, budgets: (prev.budgets || []).filter(b => b.id !== id) }));
-      showToast('Silindi!');
+      showToast('Silindi!', 'success');
     });
   };
 
@@ -178,7 +188,7 @@ export default function Butce({ db, save }: Props) {
       });
       return { ...prev, kasa: [...prev.kasa, ...newEntries] };
     });
-    showToast(`✅ ${importResult.total} işlem kasa'ya aktarıldı!`);
+    showToast(`✅ ${importResult.total} işlem kasa'ya aktarıldı!`, 'success');
     setImportResult(null);
     setBankModal(false);
   };
@@ -214,6 +224,23 @@ export default function Butce({ db, save }: Props) {
           <button onClick={openAdd} style={btnPrimary}>+ Kategori Ekle</button>
         </div>
       </div>
+
+      {/* Yıllık Grafik */}
+      {yearlyData.some(d => d.gelir > 0 || d.gider > 0) && (
+        <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.06)', padding: '16px 18px', marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '0.9rem', marginBottom: 14 }}>📅 {year} Yıllık Gelir / Gider</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={yearlyData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}K` : String(v)} axisLine={false} tickLine={false} />
+              <Tooltip formatter={(v: number) => [formatMoney(v), '']} contentStyle={{ background: '#0f1e35', border: '1px solid #334155', borderRadius: 8, fontSize: '0.82rem' }} />
+              <Legend />
+              <Bar dataKey="gelir" fill="#10b981" name="Gelir" radius={[3,3,0,0]} />
+              <Bar dataKey="gider" fill="#ef4444" name="Gider" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {budgets.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
