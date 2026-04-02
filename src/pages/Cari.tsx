@@ -28,8 +28,8 @@ export default function Cari({ db, save }: Props) {
   if (search) cari = cari.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search));
   const sorted = [...cari].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 
-  const totalReceivable = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-  const totalPayable = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const totalPayable = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
 
   const openAdd = () => { setForm({ ...empty }); setEditId(null); setModalOpen(true); };
   const openEdit = (c: CariType) => { setForm({ ...c }); setEditId(c.id); setModalOpen(true); };
@@ -145,7 +145,7 @@ export default function Cari({ db, save }: Props) {
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
-        <StatCard label="Toplam Cari" value={String(db.cari.length)} color="#3b82f6" />
+        <StatCard label="Toplam Cari" value={String(db.cari.filter(c => !c.deleted).length)} color="#3b82f6" />
         <StatCard label="Alacak" value={formatMoney(totalReceivable)} color="#10b981" sub="Müşterilerden" />
         <StatCard label="Borç" value={formatMoney(totalPayable)} color="#ef4444" sub="Tedarikçilere" />
       </div>

@@ -14,26 +14,31 @@ const getKeys = () => ({
 // ── Offline kural tabanlı sistem ──
 function offlineReply(db: DB, query: string): string {
   const q = query.toLowerCase();
+  const t = new Date();
   const todaySales = db.sales.filter(s => {
-    const d = new Date(s.createdAt); const t = new Date();
+    if (s.deleted) return false;
+    const d = new Date(s.createdAt);
     return s.status === 'tamamlandi' && d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth();
   });
   const ciro = todaySales.reduce((s, x) => s + x.total, 0);
   const kar = todaySales.reduce((s, x) => s + x.profit, 0);
 
   if (q.includes('stok') || q.includes('ürün') || q.includes('sipariş')) {
-    const out = db.products.filter(p => p.stock === 0);
-    const low = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock);
-    return `📦 **Stok Özeti**\n- Stok biten: ${out.length} ürün${out.length ? ': ' + out.slice(0,3).map(p=>p.name).join(', ') : ''}\n- Az stoklu: ${low.length} ürün\n- Toplam ürün: ${db.products.length}\n\n⚠️ *Çevrimdışı mod — derin analiz için internet gerekli*`;
+    const activeProducts = db.products.filter(p => !p.deleted);
+    const out = activeProducts.filter(p => p.stock === 0);
+    const low = activeProducts.filter(p => p.stock > 0 && p.stock <= p.minStock);
+    return `📦 **Stok Özeti**\n- Stok biten: ${out.length} ürün${out.length ? ': ' + out.slice(0,3).map(p=>p.name).join(', ') : ''}\n- Az stoklu: ${low.length} ürün\n- Toplam ürün: ${activeProducts.length}\n\n⚠️ *Çevrimdışı mod — derin analiz için internet gerekli*`;
   }
   if (q.includes('kasa') || q.includes('nakit') || q.includes('para')) {
-    const kasa = db.kasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-    const nakit = db.kasa.filter(k=>k.kasa==='nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const activeKasa = db.kasa.filter(k => !k.deleted);
+    const kasa = activeKasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const nakit = activeKasa.filter(k=>k.kasa==='nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
     return `💰 **Kasa Durumu**\n- Toplam: ${formatMoney(kasa)}\n- Nakit: ${formatMoney(nakit)}\n- Banka: ${formatMoney(kasa - nakit)}\n\n⚠️ *Çevrimdışı mod*`;
   }
   if (q.includes('alacak') || q.includes('borç') || q.includes('cari') || q.includes('müşteri')) {
-    const alacak = db.cari.filter(c=>c.type==='musteri'&&c.balance>0).reduce((s,c)=>s+c.balance,0);
-    const topBorclu = [...db.cari].filter(c=>c.type==='musteri'&&c.balance>0).sort((a,b)=>b.balance-a.balance).slice(0,3);
+    const activeCari = db.cari.filter(c => !c.deleted);
+    const alacak = activeCari.filter(c=>c.type==='musteri'&&c.balance>0).reduce((s,c)=>s+c.balance,0);
+    const topBorclu = [...activeCari].filter(c=>c.type==='musteri'&&c.balance>0).sort((a,b)=>b.balance-a.balance).slice(0,3);
     return `👤 **Cari Özet**\n- Toplam alacak: ${formatMoney(alacak)}\n- En yüksek borçlular:\n${topBorclu.map(c=>`  • ${c.name}: ${formatMoney(c.balance)}`).join('\n')}\n\n⚠️ *Çevrimdışı mod*`;
   }
   if (q.includes('satış') || q.includes('analiz') || q.includes('performans') || q.includes('bu ay')) {
@@ -105,32 +110,32 @@ function buildContext(db: DB): string {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-  const monthSales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt) >= monthStart);
-  const lastMonthSales = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt) >= lastMonthStart && new Date(s.createdAt) <= lastMonthEnd);
-  const totalKasa = db.kasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
-  const nakit = db.kasa.filter(k=>k.kasa==='nakit').reduce((s,k)=>s+(k.type==='gelir'?k.amount:-k.amount),0);
-  const outStock = db.products.filter(p=>p.stock===0);
-  const lowStock = db.products.filter(p=>p.stock>0&&p.stock<=p.minStock);
-  const stokDeger = db.products.reduce((s,p)=>s+p.cost*p.stock,0);
-  const topProducts = [...db.products].sort((a,b)=>{
-    const ar=db.sales.filter(s=>s.productId===a.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);
-    const br=db.sales.filter(s=>s.productId===b.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);
+  const monthSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt) >= monthStart);
+  const lastMonthSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt) >= lastMonthStart && new Date(s.createdAt) <= lastMonthEnd);
+  const totalKasa = db.kasa.filter(k => !k.deleted).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+  const nakit = db.kasa.filter(k=>!k.deleted&&k.kasa==='nakit').reduce((s,k)=>s+(k.type==='gelir'?k.amount:-k.amount),0);
+  const outStock = db.products.filter(p=>!p.deleted&&p.stock===0);
+  const lowStock = db.products.filter(p=>!p.deleted&&p.stock>0&&p.stock<=p.minStock);
+  const stokDeger = db.products.filter(p=>!p.deleted).reduce((s,p)=>s+p.cost*p.stock,0);
+  const topProducts = [...db.products].filter(p=>!p.deleted).sort((a,b)=>{
+    const ar=db.sales.filter(s=>!s.deleted&&s.productId===a.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);
+    const br=db.sales.filter(s=>!s.deleted&&s.productId===b.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);
     return br-ar;
   }).slice(0,5);
-  const alacak=db.cari.filter(c=>c.type==='musteri'&&c.balance>0).reduce((s,c)=>s+c.balance,0);
-  const borc=db.cari.filter(c=>c.type==='tedarikci'&&c.balance<0).reduce((s,c)=>s+Math.abs(c.balance),0);
+  const alacak=db.cari.filter(c=>!c.deleted&&c.type==='musteri'&&c.balance>0).reduce((s,c)=>s+c.balance,0);
+  const borc=db.cari.filter(c=>!c.deleted&&c.type==='tedarikci'&&c.balance<0).reduce((s,c)=>s+Math.abs(c.balance),0);
   const catSales: Record<string,number>={};
-  db.sales.filter(s=>s.status==='tamamlandi').forEach(s=>{const c=s.productCategory||'Diğer';catSales[c]=(catSales[c]||0)+s.total;});
+  db.sales.filter(s=>!s.deleted&&s.status==='tamamlandi').forEach(s=>{const c=s.productCategory||'Diğer';catSales[c]=(catSales[c]||0)+s.total;});
   return `## İşletme Özeti (${today.toLocaleDateString('tr-TR')})
 ### Satış
 - Bu ay: ${monthSales.length} satış, ${formatMoney(monthSales.reduce((s,x)=>s+x.total,0))} ciro, ${formatMoney(monthSales.reduce((s,x)=>s+x.profit,0))} kâr
 - Geçen ay: ${lastMonthSales.length} satış, ${formatMoney(lastMonthSales.reduce((s,x)=>s+x.total,0))} ciro
-- Tüm zamanlar: ${db.sales.filter(s=>s.status==='tamamlandi').length} satış
+- Tüm zamanlar: ${db.sales.filter(s=>!s.deleted&&s.status==='tamamlandi').length} satış
 ### Kasa: ${formatMoney(totalKasa)} (Nakit: ${formatMoney(nakit)}, Banka: ${formatMoney(totalKasa-nakit)})
 ### Stok
-- Toplam: ${db.products.length} ürün, Stok değeri: ${formatMoney(stokDeger)}
+- Toplam: ${db.products.filter(p=>!p.deleted).length} ürün, Stok değeri: ${formatMoney(stokDeger)}
 - Biten: ${outStock.length}, Az stoklu: ${lowStock.length}
-### Top 5 Ürün: ${topProducts.map(p=>{const r=db.sales.filter(s=>s.productId===p.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);return `${p.name}(${formatMoney(r)})`;}).join(', ')}
+### Top 5 Ürün: ${topProducts.map(p=>{const r=db.sales.filter(s=>!s.deleted&&s.productId===p.id&&s.status==='tamamlandi').reduce((s,x)=>s+x.total,0);return `${p.name}(${formatMoney(r)})`;}).join(', ')}
 ### Cari: Alacak ${formatMoney(alacak)}, Borç ${formatMoney(borc)}
 ### Tedarikçi: ${db.suppliers.length}, Bekleyen sipariş: ${db.orders.filter(o=>o.status==='bekliyor').length}
 ### Kategoriler: ${Object.entries(catSales).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`${c}:${formatMoney(v)}`).join(', ')||'Veri yok'}`;
