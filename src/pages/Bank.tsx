@@ -92,7 +92,7 @@ export default function Bank({ db, save }: Props) {
                   {t.status === 'unmatched' ? (
                     <select onChange={e => { if (e.target.value) matchToAccount(t.id, e.target.value); e.target.value = ''; }} style={{ background: '#273548', border: '1px solid #334155', borderRadius: 6, color: '#94a3b8', padding: '4px 8px', fontSize: '0.82rem' }}>
                       <option value="">Cari Seç</option>
-                      {db.cari.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      {db.cari.filter(c => !c.deleted).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   ) : t.matchedCariId ? (
                     <span style={{ color: '#10b981', fontSize: '0.85rem' }}>{db.cari.find(c => c.id === t.matchedCariId)?.name || '-'}</span>
