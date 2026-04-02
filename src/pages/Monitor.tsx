@@ -54,14 +54,14 @@ export default function Monitor({ db, save }: Props) {
   const alerts = db.monitorRules.filter(r => r.active).flatMap(r => {
     const msgs: { level: string; msg: string }[] = [];
     if (r.type === 'stok_sifir') {
-      const count = db.products.filter(p => p.stock === 0).length;
+      const count = db.products.filter(p => !p.deleted && p.stock === 0).length;
       if (count > 0) msgs.push({ level: r.level, msg: `${count} ürün stoğu bitti!` });
     } else if (r.type === 'stok_min') {
-      const count = db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length;
+      const count = db.products.filter(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock).length;
       if (count > 0) msgs.push({ level: r.level, msg: `${count} üründe düşük stok uyarısı!` });
     } else if (r.type === 'kasa_min' && r.threshold !== undefined) {
       const kasaId = r.kasa || 'nakit';
-      const bal = db.kasa.filter(k => k.kasa === kasaId).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+      const bal = db.kasa.filter(k => !k.deleted && k.kasa === kasaId).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
       if (bal < r.threshold) msgs.push({ level: r.level, msg: `${kasaId} kasası düşük: ₺${bal.toFixed(2)}` });
     }
     return msgs.map(m => ({ ...m, ruleName: r.name }));
