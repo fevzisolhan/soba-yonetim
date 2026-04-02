@@ -374,13 +374,29 @@ function AppContent() {
   useEffect(() => {
     const setup = getSetupData();
     if (!setup) return;
-    if (db.kasalar.length === 0 || !db.settings?.companyName) {
-      save(prev => ({
-        ...prev,
-        kasalar: setup.kasalar.length > 0 ? setup.kasalar : prev.kasalar,
-        settings: { ...prev.settings, companyName: setup.companyName },
-      }));
-    }
+    const applied = localStorage.getItem('sobaYonetim_setupApplied');
+    if (applied) return;
+    save(prev => {
+      const now = new Date().toISOString();
+      // Kasalar
+      const kasalar = setup.kasalar.length > 0 ? setup.kasalar : prev.kasalar;
+      // Ürünler
+      const mevcutIds = new Set(prev.products.map((p: {id:string}) => p.id));
+      const yeniUrunler = (setup.urunler || []).filter((u: {id:string}) => !mevcutIds.has(u.id));
+      const products = [...prev.products, ...yeniUrunler];
+      // Ortaklar
+      const mevcutOrtakIds = new Set(((prev as any).partners || []).map((p: {id:string}) => p.id));
+      const yeniOrtaklar = (setup.ortaklar || []).filter((o: {id:string}) => !mevcutOrtakIds.has(o.id));
+      const partners = [...((prev as any).partners || []), ...yeniOrtaklar];
+      // Ortak carileri
+      const mevcutCariIds = new Set(prev.cari.map((c: {id:string}) => c.id));
+      const yeniCariOrtaklar = (setup.cariOrtaklar || []).filter((c: {id:string}) => !mevcutCariIds.has(c.id));
+      const cari = [...prev.cari, ...yeniCariOrtaklar];
+      // Settings
+      const settings = { ...prev.settings, companyName: setup.companyName, city: setup.city };
+      return { ...prev, kasalar, products, partners, cari, settings };
+    });
+    localStorage.setItem('sobaYonetim_setupApplied', '1');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
