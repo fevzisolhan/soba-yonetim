@@ -4,6 +4,7 @@ import { useToast } from '@/components/Toast';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { Toaster } from 'sonner';
 import LoginScreen, { useAuth } from '@/components/LoginScreen';
+import SetupWizard, { isSetupDone, getSetupData } from '@/components/SetupWizard';
 import Dashboard from '@/pages/Dashboard';
 import Products from '@/pages/Products';
 import Sales from '@/pages/Sales';
@@ -369,6 +370,20 @@ function AppContent() {
   const prevOnline = useRef(isOnline);
   const { showToast } = useToast();
 
+  // İlk kurulum verisini DB'ye yaz (bir kez)
+  useEffect(() => {
+    const setup = getSetupData();
+    if (!setup) return;
+    if (db.kasalar.length === 0 || !db.settings?.companyName) {
+      save(prev => ({
+        ...prev,
+        kasalar: setup.kasalar.length > 0 ? setup.kasalar : prev.kasalar,
+        settings: { ...prev.settings, companyName: setup.companyName },
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (prevOnline.current !== isOnline) {
       if (isOnline) {
@@ -564,6 +579,10 @@ function AppContent() {
 
 export default function App() {
   const { authed, login } = useAuth();
+
+  if (!isSetupDone()) {
+    return <SetupWizard onComplete={() => { window.location.reload(); }} />;
+  }
 
   if (!authed) {
     return <LoginScreen onLogin={login} />;
