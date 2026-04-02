@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
-import { genId, formatMoney, getCategoryName, getCategoryIcon, calcProfit } from '@/lib/utils-tr';
+import { genId, formatMoney, calcProfit } from '@/lib/utils-tr';
 import type { DB, Product } from '@/types';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
-const categories = ['all', 'soba', 'aksesuar', 'yedek', 'boru', 'pelet'] as const;
-
-const empty: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> = { name: '', category: 'soba', brand: '', cost: 0, price: 0, stock: 0, minStock: 5, barcode: '', description: '' };
+const empty: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> = { name: '', category: 'soba', supplierId: '', brand: '', cost: 0, price: 0, stock: 0, minStock: 5, barcode: '', description: '' };
 
 export default function Products({ db, save }: Props) {
   const { showToast } = useToast();
@@ -19,6 +17,10 @@ export default function Products({ db, save }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<Partial<Product>>(empty);
   const [editId, setEditId] = useState<string | null>(null);
+
+  const productCats = db.productCategories || [];
+  const getCategoryIcon = (id: string) => productCats.find(c => c.id === id)?.icon || '📦';
+  const getCategoryName = (id: string) => productCats.find(c => c.id === id)?.name || id;
 
   let products = db.products.filter(p => !p.deleted);
   if (filter === 'zero') products = products.filter(p => p.stock === 0);
@@ -85,7 +87,7 @@ export default function Products({ db, save }: Props) {
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         <Chip label="Tümü" active={filter === 'all'} onClick={() => setFilter('all')} />
-        {categories.slice(1).map(c => <Chip key={c} label={`${getCategoryIcon(c)} ${getCategoryName(c)}`} active={filter === c} onClick={() => setFilter(c)} />)}
+        {productCats.map(c => <Chip key={c.id} label={`${c.icon} ${c.name}`} active={filter === c.id} onClick={() => setFilter(c.id)} />)}
         <Chip label="🔴 Biten" active={filter === 'zero'} onClick={() => setFilter('zero')} danger={outOfStock > 0} count={outOfStock} />
         <Chip label="⚠️ Az" active={filter === 'low'} onClick={() => setFilter('low')} warning={lowStock > 0} count={lowStock} />
       </div>
@@ -145,11 +147,14 @@ export default function Products({ db, save }: Props) {
           <div>
             <label style={lbl}>Kategori</label>
             <select value={form.category || 'soba'} onChange={e => f('category', e.target.value)} style={inp}>
-              <option value="soba">🔥 Soba</option>
-              <option value="aksesuar">🔧 Aksesuar</option>
-              <option value="yedek">⚙️ Yedek Parça</option>
-              <option value="boru">🔩 Boru</option>
-              <option value="pelet">🪵 Pelet</option>
+              {productCats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Tedarikçi (opsiyonel)</label>
+            <select value={form.supplierId || ''} onChange={e => f('supplierId', e.target.value)} style={inp}>
+              <option value="">— Seçilmedi —</option>
+              {db.suppliers.filter(s => !s.deleted).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
