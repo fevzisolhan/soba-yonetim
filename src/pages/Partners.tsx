@@ -30,10 +30,10 @@ export default function Partners({ db, save }: Props) {
       if (editId) {
         const i = arr.findIndex((p: Partner) => p.id === editId);
         if (i >= 0) arr[i] = { ...arr[i], ...form };
-        showToast('Ortak güncellendi!');
+        showToast('Ortak güncellendi!', 'success');
       } else {
         arr.push({ id: genId(), createdAt: nowIso, name: '', ...form });
-        showToast('Ortak eklendi!');
+        showToast('Ortak eklendi!', 'success');
       }
       return { ...prev, partners: arr };
     });
@@ -43,7 +43,7 @@ export default function Partners({ db, save }: Props) {
   const deletePartner = (id: string) => {
     showConfirm('Ortağı Sil', 'Emin misiniz?', () => {
       save(prev => ({ ...prev, partners: ((prev as any).partners || []).filter((p: Partner) => p.id !== id) }));
-      showToast('Silindi!');
+      showToast('Silindi!', 'success');
     });
   };
 
@@ -58,7 +58,7 @@ export default function Partners({ db, save }: Props) {
         type: 'emanet' as const, createdAt: nowIso, updatedAt: nowIso,
       }],
     }));
-    showToast('Emanet kaydedildi!');
+    showToast('Emanet kaydedildi!', 'success');
     setEmanetForm({ partnerId: '', amount: '', note: '' });
     setEmanetModal(false);
   };
