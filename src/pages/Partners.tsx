@@ -71,15 +71,30 @@ export default function Partners({ db, save }: Props) {
 
     save(prev => {
       const arr = [...((prev as any).partners || [])];
+      let cari = [...(prev.cari || [])];
       if (editId) {
         const i = arr.findIndex((p: Partner) => p.id === editId);
-        if (i >= 0) arr[i] = { ...arr[i], ...form, name: trimmedName };
+        if (i >= 0) {
+          arr[i] = { ...arr[i], ...form, name: trimmedName };
+          // Cari adını da güncelle
+          const ci = cari.findIndex(c => c.partnerId === editId);
+          if (ci >= 0) cari[ci] = { ...cari[ci], name: trimmedName, updatedAt: nowIso };
+        }
         showToast('Ortak güncellendi!', 'success');
       } else {
-        arr.push({ id: genId(), createdAt: nowIso, name: trimmedName, ...form });
-        showToast('Ortak eklendi!', 'success');
+        const newId = genId();
+        arr.push({ id: newId, createdAt: nowIso, name: trimmedName, ...form });
+        // Otomatik cari aç — ortak: true, partnerId bağlı
+        cari.push({
+          id: genId(), createdAt: nowIso, updatedAt: nowIso,
+          name: trimmedName, type: 'musteri' as const,
+          ortak: true, partnerId: newId,
+          balance: 0, phone: (form as any).phone || '',
+          taxNo: '', email: '', address: '',
+        });
+        showToast('Ortak eklendi, cari kaydı otomatik açıldı!', 'success');
       }
-      return { ...prev, partners: arr };
+      return { ...prev, partners: arr, cari };
     });
     setModal(false);
   };
@@ -94,14 +109,34 @@ export default function Partners({ db, save }: Props) {
   const saveEmanet = () => {
     if (!emanetForm.partnerId || !emanetForm.amount) { showToast('Ortak ve tutar gerekli!', 'error'); return; }
     const nowIso = new Date().toISOString();
-    save(prev => ({
-      ...prev,
-      ortakEmanetler: [...(prev.ortakEmanetler || []), {
-        id: genId(), partnerId: emanetForm.partnerId, amount: parseFloat(emanetForm.amount),
+    const tutar = parseFloat(emanetForm.amount);
+    save(prev => {
+      // ortakEmanetler'e yaz
+      const yeniEmanet = {
+        id: genId(), partnerId: emanetForm.partnerId, amount: tutar,
         note: emanetForm.note, description: emanetForm.note || 'Emanet',
         type: 'emanet' as const, createdAt: nowIso, updatedAt: nowIso,
-      }],
-    }));
+      };
+      // Kasadan gider yaz
+      const kasaEntry = {
+        id: genId(), type: 'gider' as const, category: 'ortak_emanet',
+        amount: tutar, kasa: 'nakit',
+        description: `Ortak emanet: ${partners.find(p => p.id === emanetForm.partnerId)?.name || ''}${emanetForm.note ? ' — ' + emanetForm.note : ''}`,
+        relatedId: emanetForm.partnerId, createdAt: nowIso, updatedAt: nowIso,
+      };
+      // Ortağın cari bakiyesini artır (borç verilen para)
+      const cari = prev.cari.map(c =>
+        c.ortak && c.partnerId === emanetForm.partnerId
+          ? { ...c, balance: (c.balance || 0) + tutar, lastTransaction: nowIso, updatedAt: nowIso }
+          : c
+      );
+      return {
+        ...prev,
+        ortakEmanetler: [...(prev.ortakEmanetler || []), yeniEmanet],
+        kasa: [...prev.kasa, kasaEntry],
+        cari,
+      };
+    });
     showToast('Emanet kaydedildi!', 'success');
     setEmanetForm({ partnerId: '', amount: '', note: '' });
     setEmanetModal(false);
