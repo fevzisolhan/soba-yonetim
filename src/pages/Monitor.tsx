@@ -77,7 +77,7 @@ export default function Monitor({ db, save }: Props) {
       }
     } else if (r.type === 'satis_hedef' && r.threshold !== undefined) {
       const today = new Date().toDateString();
-      const bugunCiro = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today).reduce((s, x) => s + x.total, 0);
+      const bugunCiro = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today).reduce((s, x) => s + x.total, 0);
       if (bugunCiro < r.threshold) msgs.push({ level: r.level, msg: `Günlük hedef: ₺${bugunCiro.toLocaleString('tr-TR')} / ₺${r.threshold.toLocaleString('tr-TR')} (%${((bugunCiro / r.threshold) * 100).toFixed(0)})` });
     }
     return msgs.map(m => ({ ...m, ruleName: r.name }));

@@ -3,29 +3,8 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
+import { normalizeTR, similarity } from '@/lib/similarity';
 import type { DB, Supplier, Order, OrderItem, Cari } from '@/types';
-
-// Türkçe normalize + benzerlik skoru (0-1)
-function normalizeTR(s: string) {
-  return s.toLowerCase()
-    .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
-    .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
-    .replace(/[^a-z0-9 ]/g, '').trim();
-}
-function similarity(a: string, b: string): number {
-  const na = normalizeTR(a), nb = normalizeTR(b);
-  if (na === nb) return 1;
-  if (na.includes(nb) || nb.includes(na)) return 0.85;
-  const wordsA = new Set(na.split(' ').filter(Boolean));
-  const wordsB = new Set(nb.split(' ').filter(Boolean));
-  const common = [...wordsA].filter(w => wordsB.has(w)).length;
-  if (common > 0) return common / Math.max(wordsA.size, wordsB.size) * 0.9;
-  // Bigram
-  const bigrams = (s: string) => { const b: Set<string> = new Set(); for (let i = 0; i < s.length - 1; i++) b.add(s.slice(i, i + 2)); return b; };
-  const ba = bigrams(na), bb = bigrams(nb);
-  const inter = [...ba].filter(x => bb.has(x)).length;
-  return (2 * inter) / (ba.size + bb.size);
-}
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
@@ -70,7 +49,7 @@ export default function Suppliers({ db, save }: Props) {
     ];
     const found = candidates
       .map(s => ({ name: s.name, score: similarity(name, s.name) }))
-      .filter(x => x.score >= 0.6)
+      .filter(x => x.score >= 60)
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
     setDupWarning(found);
@@ -342,7 +321,7 @@ export default function Suppliers({ db, save }: Props) {
                 </p>
                 {dupWarning.map((d, i) => (
                   <p key={i} style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '2px 0' }}>
-                    • {d.name} <span style={{ color: d.score >= 0.9 ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>(%{Math.round(d.score * 100)} benzerlik)</span>
+                    • {d.name} <span style={{ color: d.score >= 90 ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>(%{d.score} benzerlik)</span>
                   </p>
                 ))}
               </div>

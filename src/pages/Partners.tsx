@@ -3,6 +3,7 @@ import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { Modal } from '@/components/Modal';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
+import { normalizeTR, similarity, isExactMatch } from '@/lib/similarity';
 import type { DB } from '@/types';
 
 interface Partner { id: string; name: string; share: number; phone?: string; email?: string; note?: string; createdAt: string; }
@@ -22,22 +23,6 @@ export default function Partners({ db, save }: Props) {
   const partners: Partner[] = db.partners || [];
   const emanetler: Emanet[] = db.ortakEmanetler || [];
 
-  const normalizeName = (s: string) => s.trim().toLowerCase()
-    .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
-    .replace(/ı/g,'i').replace(/ö/g,'o').replace(/ç/g,'c')
-    .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
-
-  const similarityScore = (a: string, b: string) => {
-    const na = normalizeName(a), nb = normalizeName(b);
-    if (na === nb) return 100;
-    const longer = na.length > nb.length ? na : nb;
-    const shorter = na.length > nb.length ? nb : na;
-    if (longer.includes(shorter)) return 85;
-    let matches = 0;
-    for (let i = 0; i < shorter.length; i++) if (longer.includes(shorter[i])) matches++;
-    return Math.round((matches / longer.length) * 100);
-  };
-
   // Cari çapraz kontrol
   const cariList = db.cari || [];
 
@@ -46,15 +31,15 @@ export default function Partners({ db, save }: Props) {
     if (!trimmedName) { showToast('Ad gerekli!', 'error'); return; }
     const nowIso = new Date().toISOString();
 
-    if (!editId || normalizeName(trimmedName) !== normalizeName(partners.find(p => p.id === editId)?.name || '')) {
+    if (!editId || !isExactMatch(trimmedName, partners.find(p => p.id === editId)?.name || '')) {
       // Ortak listesinde aynı isim var mı?
-      const tamOrtak = partners.find(p => p.id !== editId && normalizeName(p.name) === normalizeName(trimmedName));
+      const tamOrtak = partners.find(p => p.id !== editId && isExactMatch(p.name, trimmedName));
       if (tamOrtak) {
         showToast(`"${tamOrtak.name}" adında ortak zaten var! Kayıt engellendi.`, 'error');
         return;
       }
       // Cari listesinde aynı isim var mı?
-      const tamCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && normalizeName(c.name) === normalizeName(trimmedName));
+      const tamCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && isExactMatch(c.name, trimmedName));
       if (tamCari) {
         showToast(`"${tamCari.name}" cari listesinde zaten var! Kayıt engellendi.`, 'error');
         return;

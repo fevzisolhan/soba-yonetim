@@ -616,9 +616,10 @@ function AppContent() {
 
 export default function App() {
   const { authed, login } = useAuth();
+  const [setupDone, setSetupDone] = useState(isSetupDone);
 
-  if (!isSetupDone()) {
-    return <SetupWizard onComplete={() => { window.location.reload(); }} />;
+  if (!setupDone) {
+    return <SetupWizard onComplete={() => { setSetupDone(true); }} />;
   }
 
   if (!authed) {

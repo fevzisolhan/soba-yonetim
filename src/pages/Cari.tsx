@@ -4,6 +4,7 @@ import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
 import { exportToExcel } from '@/lib/excelExport';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
+import { normalizeTR, similarity, isExactMatch } from '@/lib/similarity';
 import type { DB, Cari as CariType } from '@/types';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
@@ -33,35 +34,19 @@ export default function Cari({ db, save }: Props) {
   const openAdd = () => { setForm({ ...empty }); setEditId(null); setModalOpen(true); };
   const openEdit = (c: CariType) => { setForm({ ...c }); setEditId(c.id); setModalOpen(true); };
 
-  const normalizeName = (s: string) => s.trim().toLowerCase()
-    .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
-    .replace(/ı/g,'i').replace(/ö/g,'o').replace(/ç/g,'c')
-    .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
-
-  const similarityScore = (a: string, b: string) => {
-    const na = normalizeName(a), nb = normalizeName(b);
-    if (na === nb) return 100;
-    const longer = na.length > nb.length ? na : nb;
-    const shorter = na.length > nb.length ? nb : na;
-    if (longer.includes(shorter)) return 85;
-    let matches = 0;
-    for (let i = 0; i < shorter.length; i++) if (longer.includes(shorter[i])) matches++;
-    return Math.round((matches / longer.length) * 100);
-  };
-
   const handleSave = () => {
     const trimmedName = (form.name || '').trim();
     if (!trimmedName) { showToast('Ad gerekli!', 'error'); return; }
     const nowIso = new Date().toISOString();
 
-    if (!editId || normalizeName(trimmedName) !== normalizeName(db.cari.find(c => c.id === editId)?.name || '')) {
+    if (!editId || !isExactMatch(trimmedName, db.cari.find(c => c.id === editId)?.name || '')) {
       const aktifCari = db.cari.filter(c => !c.deleted && c.id !== editId);
-      const tamEslesme = aktifCari.find(c => normalizeName(c.name) === normalizeName(trimmedName));
+      const tamEslesme = aktifCari.find(c => isExactMatch(c.name, trimmedName));
       if (tamEslesme) {
         showToast(`"${tamEslesme.name}" adında cari zaten var! Kayıt engellendi.`, 'error');
         return;
       }
-      const benzer = aktifCari.find(c => similarityScore(c.name, trimmedName) >= 70);
+      const benzer = aktifCari.find(c => similarity(c.name, trimmedName) >= 70);
       if (benzer) {
         const devamEt = window.confirm(`⚠️ "${benzer.name}" adında benzer bir cari mevcut.\nYine de kaydetmek istiyor musunuz?`);
         if (!devamEt) return;

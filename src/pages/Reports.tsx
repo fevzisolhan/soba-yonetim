@@ -65,8 +65,8 @@ function TabOzet({ db, start, end }: { db: DB; start: Date; end: Date }) {
   const prevKar = prevSales.reduce((s, x) => s + x.profit, 0);
   const delta = (curr: number, prev: number) => prev === 0 ? null : `${curr >= prev ? '▲' : '▼'} %${Math.abs(((curr - prev) / prev) * 100).toFixed(1)}`;
 
-  const alacak = db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
-  const borc = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const alacak = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+  const borc = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
   const kasaToplam = db.kasa.filter(e => !e.deleted).reduce((s, e) => s + (e.type === 'gelir' ? e.amount : -e.amount), 0);
   const stokDeger = db.products.filter(p => !p.deleted).reduce((s, p) => s + p.cost * p.stock, 0);
 
@@ -391,7 +391,7 @@ function TabCari({ db }: { db: DB }) {
 
   const now = new Date();
   const cariList = useMemo(() => {
-    let list = db.cari.filter(c => filter === 'all' ? true : c.type === filter);
+    let list = db.cari.filter(c => !c.deleted && (filter === 'all' ? true : c.type === filter));
     if (search) list = list.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
     return [...list].sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance));
   }, [db.cari, filter, search]);
@@ -399,7 +399,7 @@ function TabCari({ db }: { db: DB }) {
   // Vade yaşlandırma — son işlem tarihine göre
   const agingData = useMemo(() => {
     const buckets = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };
-    db.cari.filter(c => c.type === 'musteri' && c.balance > 0).forEach(c => {
+    db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).forEach(c => {
       const lastSale = db.sales.filter(s => (s.cariId === c.id || s.customerId === c.id) && s.status === 'tamamlandi').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
       const days = lastSale ? Math.floor((now.getTime() - new Date(lastSale.createdAt).getTime()) / 86400000) : 999;
       if (days <= 30) buckets['0-30'] += c.balance;
@@ -411,10 +411,10 @@ function TabCari({ db }: { db: DB }) {
   }, [db.cari, db.sales]);
 
   const totals = useMemo(() => ({
-    musteri: db.cari.filter(c => c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0),
-    tedarikci: db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0),
-    musteri_sayisi: db.cari.filter(c => c.type === 'musteri' && c.balance > 0).length,
-    tedarikci_sayisi: db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0).length,
+    musteri: db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0),
+    tedarikci: db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0),
+    musteri_sayisi: db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).length,
+    tedarikci_sayisi: db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).length,
   }), [db.cari]);
 
   const handleExport = () => {
