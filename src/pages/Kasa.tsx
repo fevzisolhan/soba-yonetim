@@ -18,6 +18,15 @@ export default function Kasa({ db, save }: Props) {
   const [filter, setFilter] = useState('all');
   const [kasaFilter, setKasaFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  const catLabels: Record<string, string> = {
+    satis: '🛒 Satış', tahsilat: '💰 Tahsilat', diger_gelir: '➕ Diğer Gelir',
+    tedarik: '🏭 Tedarik', kira: '🏠 Kira', maas: '👤 Maaş',
+    fatura: '📄 Fatura', nakliye: '🚛 Nakliye', diger_gider: '➖ Diğer Gider',
+    iade: '🔄 İade',
+  };
   const [form, setForm] = useState({ amount: '', description: '', kasa: 'nakit', cariId: '', category: '' });
 
   const kasalar = db.kasalar || [{ id: 'nakit', name: 'Nakit', icon: '💵' }, { id: 'banka', name: 'Banka', icon: '🏦' }];
@@ -37,7 +46,9 @@ export default function Kasa({ db, save }: Props) {
   if (filter === 'gelir') entries = entries.filter(e => e.type === 'gelir');
   else if (filter === 'gider') entries = entries.filter(e => e.type === 'gider');
   if (kasaFilter !== 'all') entries = entries.filter(e => e.kasa === kasaFilter);
-  if (search) entries = entries.filter(e => (e.description || '').toLowerCase().includes(search.toLowerCase()));
+  if (search) entries = entries.filter(e => (e.description || '').toLowerCase().includes(search.toLowerCase()) || (catLabels[e.category] || e.category || '').toLowerCase().includes(search.toLowerCase()));
+  if (dateFrom) entries = entries.filter(e => e.createdAt >= dateFrom);
+  if (dateTo) entries = entries.filter(e => e.createdAt <= dateTo + 'T23:59:59');
   const sorted = [...entries].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const saveEntry = (type: 'gelir' | 'gider') => {
@@ -156,6 +167,9 @@ export default function Kasa({ db, save }: Props) {
         <button onClick={() => setExpenseModal(true)} style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, color: '#ef4444', padding: '10px 18px', fontWeight: 700, cursor: 'pointer' }}>- Gider</button>
         <button onClick={() => { exportToExcel(db, { sheets: ['kasa'] }); showToast('Excel indirildi!', 'success'); }} style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, color: '#60a5fa', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📊 Excel İndir</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', fontSize: '0.9rem', flex: 1 }} />
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', fontSize: '0.85rem' }} />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '9px 10px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', fontSize: '0.85rem' }} />
+        {(dateFrom || dateTo) && <button onClick={() => { setDateFrom(''); setDateTo(''); }} style={{ padding: '8px 10px', border: 'none', borderRadius: 8, background: '#334155', color: '#94a3b8', cursor: 'pointer', fontSize: '0.82rem' }}>✕</button>}
         {['all', 'gelir', 'gider'].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: filter === f ? '#ff5722' : '#273548', color: filter === f ? '#fff' : '#94a3b8' }}>
             {f === 'all' ? 'Tümü' : f === 'gelir' ? '💚 Gelir' : '🔴 Gider'}
@@ -180,7 +194,7 @@ export default function Kasa({ db, save }: Props) {
               <tr key={e.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <td style={{ padding: '11px 16px', color: '#64748b', fontSize: '0.82rem' }}>{formatDate(e.createdAt)}</td>
                 <td style={{ padding: '11px 16px', color: '#f1f5f9', fontSize: '0.9rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.description || '-'}</td>
-                <td style={{ padding: '11px 16px', color: '#94a3b8', fontSize: '0.82rem' }}>{e.category || '-'}</td>
+                <td style={{ padding: '11px 16px', color: '#94a3b8', fontSize: '0.82rem' }}>{catLabels[e.category] || e.category || '-'}</td>
                 <td style={{ padding: '11px 16px', color: '#94a3b8' }}>{kasalar.find(k => k.id === e.kasa)?.icon} {e.kasa}</td>
                 <td style={{ padding: '11px 16px', fontWeight: 700, color: e.type === 'gelir' ? '#10b981' : '#ef4444' }}>
                   {e.type === 'gelir' ? '+' : '-'}{formatMoney(e.amount)}
