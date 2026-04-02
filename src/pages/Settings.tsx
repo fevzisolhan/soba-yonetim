@@ -13,6 +13,7 @@ interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () =
 
 const TABS_LIST = [
   { id: 'company', icon: '🏢', label: 'Şirket' },
+  { id: 'categories', icon: '🏷️', label: 'Kategoriler' },
   { id: 'pellet', icon: '🪵', label: 'Pelet' },
   { id: 'sound', icon: '🔊', label: 'Ses' },
   { id: 'backup', icon: '💾', label: 'Yedek & Geri Yükleme' },
@@ -194,6 +195,10 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
 
       {tab === 'excel' && (
         <ExcelImport db={db} save={save} />
+      )}
+
+      {tab === 'categories' && (
+        <KategoriYonetim db={db} save={save} />
       )}
 
       {tab === 'data' && (
@@ -1592,5 +1597,91 @@ function FV({ label, value, onChange, type = 'text' }: { label: string; value: s
       <label style={lbl}>{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} style={inp} />
     </div>
+  );
+}
+
+// ── Kategori Yönetim Component ────────────────────────────────────────────────
+function KategoriYonetim({ db, save }: { db: DB; save: (fn: (prev: DB) => DB) => void }) {
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
+  const cats = db.productCategories || [];
+  const [yeniAd, setYeniAd] = useState('');
+  const [yeniIcon, setYeniIcon] = useState('📦');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', icon: '' });
+
+  const addKat = () => {
+    const ad = yeniAd.trim();
+    if (!ad) { showToast('Kategori adı gerekli!', 'error'); return; }
+    const id = ad.toLowerCase()
+      .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
+      .replace(/ı/g,'i').replace(/ö/g,'o').replace(/ç/g,'c')
+      .replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_');
+    if (cats.find(c => c.id === id)) { showToast('Bu ID zaten var!', 'error'); return; }
+    const nowIso = new Date().toISOString();
+    save(prev => ({
+      ...prev,
+      productCategories: [...(prev.productCategories || []), { id, name: ad, icon: yeniIcon, createdAt: nowIso }],
+    }));
+    setYeniAd(''); setYeniIcon('📦');
+    showToast('Kategori eklendi!', 'success');
+  };
+
+  const saveEdit = (id: string) => {
+    if (!editForm.name.trim()) { showToast('Ad gerekli!', 'error'); return; }
+    save(prev => ({
+      ...prev,
+      productCategories: (prev.productCategories || []).map(c =>
+        c.id === id ? { ...c, name: editForm.name.trim(), icon: editForm.icon || c.icon } : c
+      ),
+    }));
+    setEditId(null);
+    showToast('Güncellendi!', 'success');
+  };
+
+  const deleteKat = (id: string) => {
+    const used = db.products.filter(p => !p.deleted && p.category === id).length;
+    if (used > 0) { showToast(`${used} ürün bu kategoriyi kullanıyor, silemezsiniz!`, 'error'); return; }
+    showConfirm('Kategori Sil', 'Bu kategoriyi silmek istiyor musunuz?', () => {
+      save(prev => ({ ...prev, productCategories: (prev.productCategories || []).filter(c => c.id !== id) }));
+      showToast('Kategori silindi!', 'success');
+    });
+  };
+
+  return (
+    <Card title="🏷️ Ürün Kategorileri">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+        {cats.length === 0 && (
+          <div style={{ color: '#475569', textAlign: 'center', padding: 24, fontSize: '0.88rem' }}>Henüz kategori yok</div>
+        )}
+        {cats.map(c => (
+          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(0,0,0,0.3)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(255,255,255,0.06)' }}>
+            {editId === c.id ? (
+              <>
+                <input value={editForm.icon} onChange={e => setEditForm(f => ({ ...f, icon: e.target.value }))} style={{ ...inp, width: 48, textAlign: 'center', fontSize: '1.1rem', padding: '6px' }} maxLength={2} />
+                <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ ...inp, flex: 1, padding: '7px 10px' }} autoFocus />
+                <button onClick={() => saveEdit(c.id)} style={{ background: '#10b981', border: 'none', borderRadius: 8, color: '#fff', padding: '6px 12px', cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem' }}>✓</button>
+                <button onClick={() => setEditId(null)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#94a3b8', padding: '6px 10px', cursor: 'pointer' }}>✕</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: '1.4rem', minWidth: 28, textAlign: 'center' }}>{c.icon}</span>
+                <span style={{ flex: 1, color: '#f1f5f9', fontWeight: 600 }}>{c.name}</span>
+                <span style={{ color: '#334155', fontSize: '0.75rem', fontFamily: 'monospace' }}>{c.id}</span>
+                <span style={{ color: '#475569', fontSize: '0.78rem' }}>{db.products.filter(p => !p.deleted && p.category === c.id).length} ürün</span>
+                <button onClick={() => { setEditId(c.id); setEditForm({ name: c.name, icon: c.icon }); }} style={{ background: 'rgba(59,130,246,0.12)', border: 'none', borderRadius: 8, color: '#60a5fa', padding: '5px 10px', cursor: 'pointer', fontSize: '0.8rem' }}>✏️</button>
+                <button onClick={() => deleteKat(c.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 8, color: '#ef4444', padding: '5px 10px', cursor: 'pointer', fontSize: '0.8rem' }}>🗑️</button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={yeniIcon} onChange={e => setYeniIcon(e.target.value)} style={{ ...inp, width: 52, textAlign: 'center', fontSize: '1.2rem' }} placeholder="📦" maxLength={2} />
+        <input value={yeniAd} onChange={e => setYeniAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addKat()} style={{ ...inp, flex: 1 }} placeholder="Yeni kategori adı..." />
+        <button onClick={addKat} style={{ padding: '10px 18px', background: 'linear-gradient(135deg, #ff5722, #ff7043)', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>+ Ekle</button>
+      </div>
+      <p style={{ color: '#334155', fontSize: '0.75rem', marginTop: 10 }}>Ürünleri kullanan kategoriler silinemez.</p>
+    </Card>
   );
 }
