@@ -289,10 +289,10 @@ export default function Sales({ db, save }: Props) {
 
           {/* Sağ: Ödeme & Özet */}
           <div style={{ flex: '1 1 220px' }}>
-            <label style={lbl}>Müşteri (opsiyonel)</label>
-            <select tabIndex={2} value={customerId} onChange={e => setCustomerId(e.target.value)} style={sinpStyle}>
-              <option value="">-- Müşteri Seç --</option>
-              {db.cari.filter(c => c.type === 'musteri').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <label style={lbl}>Müşteri <span style={{ color: '#ef4444' }}>*</span></label>
+            <select tabIndex={2} value={customerId} onChange={e => setCustomerId(e.target.value)} style={{ ...sinpStyle, borderColor: !customerId ? 'rgba(239,68,68,0.4)' : undefined }}>
+              <option value="">-- Müşteri Seç (zorunlu) --</option>
+              {db.cari.filter(c => c.type === 'musteri' && !c.ortak && !c.deleted).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
 
             <label style={{ ...lbl, marginTop: 12 }}>Ödeme Şekli</label>
