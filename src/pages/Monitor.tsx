@@ -29,10 +29,10 @@ export default function Monitor({ db, save }: Props) {
       if (editId) {
         const i = rules.findIndex(r => r.id === editId);
         if (i >= 0) rules[i] = { ...rules[i], ...form, updatedAt: nowIso } as MonitorRule;
-        showToast('Kural güncellendi!');
+        showToast('Kural güncellendi!', 'success');
       } else {
         rules.push({ id: genId(), createdAt: nowIso, updatedAt: nowIso, name: '', type: 'stok_min', level: 'warning', interval: 60, popup: true, active: true, ...form } as MonitorRule);
-        showToast('Kural eklendi!');
+        showToast('Kural eklendi!', 'success');
       }
       return { ...prev, monitorRules: rules };
     });
@@ -42,7 +42,7 @@ export default function Monitor({ db, save }: Props) {
   const deleteRule = (id: string) => {
     showConfirm('Kural Sil', 'Bu kuralı silmek istediğinizden emin misiniz?', () => {
       save(prev => ({ ...prev, monitorRules: prev.monitorRules.filter(r => r.id !== id) }));
-      showToast('Kural silindi!');
+      showToast('Kural silindi!', 'success');
     });
   };
 
@@ -63,6 +63,22 @@ export default function Monitor({ db, save }: Props) {
       const kasaId = r.kasa || 'nakit';
       const bal = db.kasa.filter(k => !k.deleted && k.kasa === kasaId).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
       if (bal < r.threshold) msgs.push({ level: r.level, msg: `${kasaId} kasası düşük: ₺${bal.toFixed(2)}` });
+    } else if (r.type === 'alacak_vadeli') {
+      const alacak = db.cari.filter(c => c.type === 'musteri' && c.balance > 0);
+      if (alacak.length > 0) {
+        const toplam = alacak.reduce((s, c) => s + c.balance, 0);
+        msgs.push({ level: r.level, msg: `${alacak.length} müşteride toplam ₺${toplam.toLocaleString('tr-TR')} alacak var` });
+      }
+    } else if (r.type === 'borc_vadeli') {
+      const borc = db.cari.filter(c => c.type === 'tedarikci' && c.balance > 0);
+      if (borc.length > 0) {
+        const toplam = borc.reduce((s, c) => s + c.balance, 0);
+        msgs.push({ level: r.level, msg: `${borc.length} tedarikçiye toplam ₺${toplam.toLocaleString('tr-TR')} borç var` });
+      }
+    } else if (r.type === 'satis_hedef' && r.threshold !== undefined) {
+      const today = new Date().toDateString();
+      const bugunCiro = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today).reduce((s, x) => s + x.total, 0);
+      if (bugunCiro < r.threshold) msgs.push({ level: r.level, msg: `Günlük hedef: ₺${bugunCiro.toLocaleString('tr-TR')} / ₺${r.threshold.toLocaleString('tr-TR')} (%${((bugunCiro / r.threshold) * 100).toFixed(0)})` });
     }
     return msgs.map(m => ({ ...m, ruleName: r.name }));
   });
