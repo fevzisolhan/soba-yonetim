@@ -38,7 +38,7 @@ export default function Butce({ db, save }: Props) {
   const startOfMonth = new Date(year, month, 1).toISOString();
   const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
 
-  const monthKasa = useMemo(() => db.kasa.filter(k => k.createdAt >= startOfMonth && k.createdAt <= endOfMonth), [db.kasa, startOfMonth, endOfMonth]);
+  const monthKasa = useMemo(() => db.kasa.filter(k => !k.deleted && k.createdAt >= startOfMonth && k.createdAt <= endOfMonth), [db.kasa, startOfMonth, endOfMonth]);
   const monthExpenses = monthKasa.filter(k => k.type === 'gider');
   const monthIncome = monthKasa.filter(k => k.type === 'gelir');
   const totalExpense = monthExpenses.reduce((s, k) => s + k.amount, 0);
@@ -111,32 +111,13 @@ export default function Butce({ db, save }: Props) {
     lines.forEach(line => {
       const cols = line.split(/[,;\t]/).map(c => c.replace(/["']/g, '').trim());
       if (cols.length < 3) return;
-
-      // Tarih: DD.MM.YYYY veya DD/MM/YYYY formatında
-      const dateStr = cols.find(c => /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(c)) || '';
-
-      // Tarih formatındaki sayıları (DDMMYYYY=8 hane) amount olarak alma
-      const amtStr = cols.find(c => {
-        if (c === dateStr) return false;
-        // 8 haneli ve tarih formatına benzeyen sayıları reddet (DDMMYYYY)
-        const digits = c.replace(/[.,]/g, '');
-        if (/^\d{7,8}$/.test(digits)) return false;
-        const val = parseFloat(c.replace(/\./g, '').replace(',', '.'));
-        return !isNaN(val) && val >= 1 && val < 10_000_000;
-      });
+      const dateStr = cols.find(c => /\d{2}[./-]\d{2}[./-]\d{2,4}/.test(c)) || '';
+      const amtStr = cols.find(c => /[\d.,]+/.test(c) && parseFloat(c.replace(/\./g, '').replace(',', '.')) > 0);
       const amount = amtStr ? Math.abs(parseFloat(amtStr.replace(/\./g, '').replace(',', '.'))) : 0;
       if (!amount || amount < 1) return;
-
       const desc = cols.filter(c => c !== dateStr && c !== amtStr && c.length > 2).join(' — ').slice(0, 120);
-
-      // Tip tespiti: açıkça "alacak/gelen/tahsilat/gelir" varsa GELİR,
-      // "borç/giden/ödeme/gider/masraf" varsa GİDER,
-      // Banka ekstresinde belirsizse → GELİR (müşteri havalesi varsayımı)
-      const isGelir = cols.some(c => /alacak|gelen|tahsilat|gelir|havale.*al|al.*havale/i.test(c));
-      const isGider = cols.some(c => /\bborç\b|giden|masraf|gider|ödeme|tedarik|fatura/i.test(c));
-      const tip: 'gelir' | 'gider' = isGider && !isGelir ? 'gider' : 'gelir';
-
-      if (dateStr && amount > 0) entries.push({ date: dateStr, desc, amount, type: tip });
+      const isGelir = cols.some(c => /alacak|gelen|tahsilat|gelir/i.test(c));
+      if (dateStr && amount > 0) entries.push({ date: dateStr, desc, amount, type: isGelir ? 'gelir' : 'gider' });
     });
     return entries;
   };
@@ -190,16 +171,9 @@ export default function Butce({ db, save }: Props) {
     save(prev => {
       const newEntries = importResult.entries.map(e => {
         const cat = budgets.find(b => b.kasaCategories.some(kc => e.desc.toLowerCase().includes(kc.toLowerCase())));
-        // Tarih: "DD.MM.YYYY" → ISO
-        let entryDate = nowIso;
-        const dm = e.date.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-        if (dm) {
-          const parsed = new Date(`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`);
-          if (!isNaN(parsed.getTime())) entryDate = parsed.toISOString();
-        }
         return {
-          id: genId(), type: e.type, category: cat?.kasaCategories[0] || 'banka_ekstre', amount: e.amount, kasa: 'banka' as const,
-          description: `[Ekstre] ${e.desc}`.slice(0, 150), createdAt: entryDate, updatedAt: nowIso,
+          id: genId(), type: e.type, category: cat?.kasaCategories[0] || 'banka_ekstere', amount: e.amount, kasa: 'banka' as const,
+          description: `[Ekstre] ${e.desc}`.slice(0, 150), createdAt: nowIso, updatedAt: nowIso,
         };
       });
       return { ...prev, kasa: [...prev.kasa, ...newEntries] };
