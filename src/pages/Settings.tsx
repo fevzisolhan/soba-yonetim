@@ -7,12 +7,11 @@ import type { SoundSettings, SoundTheme, SoundType } from '@/hooks/useSoundFeedb
 import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
-import { type LoginTheme, LOGIN_THEME_KEY } from '@/components/LoginScreen';
+import { getStoredHash, hashPass } from '@/components/LoginScreen';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
 const TABS_LIST = [
-  { id: 'gorunum', icon: '🎨', label: 'Görünüm' },
   { id: 'company', icon: '🏢', label: 'Şirket' },
   { id: 'pellet', icon: '🪵', label: 'Pelet' },
   { id: 'sound', icon: '🔊', label: 'Ses' },
@@ -23,6 +22,7 @@ const TABS_LIST = [
   { id: 'repair', icon: '🔧', label: 'Veri Onarım' },
   { id: 'excel', icon: '📥', label: 'Excel İçe Aktar' },
   { id: 'data', icon: '🗄️', label: 'Veri Yönetimi' },
+  { id: 'security', icon: '🔐', label: 'Güvenlik' },
 ] as const;
 
 type Tab = typeof TABS_LIST[number]['id'];
@@ -53,16 +53,7 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
   const { playSound } = useSoundFeedback();
   const [company, setCompany] = useState({ ...db.company });
   const [pellet, setPellet] = useState({ ...db.pelletSettings });
-  const [tab, setTab] = useState<Tab>('gorunum');
-  const [loginTheme, setLoginTheme] = useState<LoginTheme>(
-    () => (localStorage.getItem(LOGIN_THEME_KEY) as LoginTheme) || 'ates'
-  );
-
-  const changeTheme = (t: LoginTheme) => {
-    setLoginTheme(t);
-    localStorage.setItem(LOGIN_THEME_KEY, t);
-    showToast(`Tema değiştirildi! Giriş ekranında da geçerli.`, 'success');
-  };
+  const [tab, setTab] = useState<Tab>('company');
 
   const saveCompany = () => {
     save(prev => ({ ...prev, company: { ...company, id: prev.company.id, createdAt: prev.company.createdAt } }));
@@ -113,52 +104,6 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
           </button>
         ))}
       </div>
-
-      {tab === 'gorunum' && (
-        <Card title="🎨 Giriş Ekranı Teması">
-          <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: 20, lineHeight: 1.6 }}>
-            Seçilen tema hem giriş ekranında hem de bir sonraki oturumda geçerli olur.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
-            {([
-              { id: 'ates',    name: '🔥 Ateş',    dot: '#ff5722', bg: 'linear-gradient(135deg,#1a0800,#2d1100)', border: '#ff5722', desc: 'Turuncu, dinamik' },
-              { id: 'cam',     name: '💠 Cam',     dot: '#00bcd4', bg: 'linear-gradient(135deg,#020f1e,#061525)', border: '#00bcd4', desc: 'Cyan, glassmorphism' },
-              { id: 'buz',     name: '❄️ Buz',     dot: '#90caf9', bg: 'linear-gradient(135deg,#e8f4f8,#dde8f0)', border: '#90caf9', desc: 'Açık, buz mavisi' },
-              { id: 'minimal', name: '⬛ Minimal', dot: '#94a3b8', bg: 'linear-gradient(135deg,#0c0c0c,#1a1a1a)', border: '#334155', desc: 'Siyah, sade' },
-            ] as { id: LoginTheme; name: string; dot: string; bg: string; border: string; desc: string }[]).map(t => {
-              const active = loginTheme === t.id;
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => changeTheme(t.id)}
-                  style={{
-                    background: t.bg, border: `2px solid ${active ? t.dot : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 16, padding: '20px 14px', cursor: 'pointer', textAlign: 'center',
-                    boxShadow: active ? `0 0 20px ${t.dot}44, 0 4px 20px rgba(0,0,0,0.4)` : '0 2px 8px rgba(0,0,0,0.3)',
-                    transition: 'all 0.2s', transform: active ? 'scale(1.04)' : 'scale(1)',
-                    position: 'relative', overflow: 'hidden',
-                  }}
-                >
-                  {active && (
-                    <div style={{ position: 'absolute', top: 8, right: 8, background: t.dot, borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: '#fff', fontWeight: 800 }}>✓</div>
-                  )}
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: t.dot, margin: '0 auto 10px', boxShadow: `0 4px 16px ${t.dot}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
-                    {t.name.split(' ')[0]}
-                  </div>
-                  <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>{t.name.split(' ').slice(1).join(' ')}</div>
-                  <div style={{ color: '#64748b', fontSize: '0.72rem' }}>{t.desc}</div>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ marginTop: 20, background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: '12px 16px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.6 }}>
-            💡 Tema değişikliği anında kaydedilir. Giriş ekranına döndüğünüzde yeni tema aktif olur.
-            <br />Aktif tema: <strong style={{ color: '#818cf8' }}>{
-              { ates: '🔥 Ateş', cam: '💠 Cam', buz: '❄️ Buz', minimal: '⬛ Minimal' }[loginTheme]
-            }</strong>
-          </div>
-        </Card>
-      )}
 
       {tab === 'company' && (
         <Card title="🏢 Şirket Bilgileri">
@@ -281,7 +226,105 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
           </Card>
         </div>
       )}
+
+      {tab === 'security' && (
+        <SecurityPanel showToast={showToast} />
+      )}
     </div>
+  );
+}
+
+function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success' | 'error' | 'info') => void }) {
+  const [oldPass, setOldPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [newPass2, setNewPass2] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showOld, setShowOld] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+
+  const PASS_KEY = 'sobaYonetim_appPass';
+
+  const handleChange = async () => {
+    if (!oldPass) { showToast('Mevcut parolayı girin!', 'error'); return; }
+    if (newPass.length < 4) { showToast('Yeni parola en az 4 karakter olmalı!', 'error'); return; }
+    if (newPass !== newPass2) { showToast('Yeni parolalar eşleşmiyor!', 'error'); return; }
+
+    setLoading(true);
+    const oldHash = await hashPass(oldPass);
+    const stored = getStoredHash();
+
+    if (oldHash !== stored) {
+      showToast('Mevcut parola yanlış!', 'error');
+      setLoading(false);
+      setOldPass('');
+      return;
+    }
+
+    const newHash = await hashPass(newPass);
+    localStorage.setItem(PASS_KEY, newHash);
+    setOldPass('');
+    setNewPass('');
+    setNewPass2('');
+    setLoading(false);
+    showToast('Parola başarıyla değiştirildi!', 'success');
+  };
+
+  return (
+    <Card title="🔐 Parola Değiştir">
+      <div style={{ display: 'grid', gap: 14, maxWidth: 380 }}>
+        <div>
+          <label style={lbl}>Mevcut Parola</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showOld ? 'text' : 'password'}
+              value={oldPass}
+              onChange={e => setOldPass(e.target.value)}
+              placeholder="Mevcut parolanız"
+              style={{ ...inp, paddingRight: 44 }}
+            />
+            <button onClick={() => setShowOld(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.9rem' }}>
+              {showOld ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={lbl}>Yeni Parola</label>
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showNew ? 'text' : 'password'}
+              value={newPass}
+              onChange={e => setNewPass(e.target.value)}
+              placeholder="En az 4 karakter"
+              style={{ ...inp, paddingRight: 44 }}
+            />
+            <button onClick={() => setShowNew(p => !p)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.9rem' }}>
+              {showNew ? '🙈' : '👁️'}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label style={lbl}>Yeni Parola (Tekrar)</label>
+          <input
+            type={showNew ? 'text' : 'password'}
+            value={newPass2}
+            onChange={e => setNewPass2(e.target.value)}
+            placeholder="Yeni parolayı tekrar girin"
+            style={inp}
+            onKeyDown={e => e.key === 'Enter' && handleChange()}
+          />
+        </div>
+
+        <button onClick={handleChange} disabled={loading} style={btnPrimary}>
+          {loading ? '⏳ Değiştiriliyor...' : '🔐 Parolayı Değiştir'}
+        </button>
+
+        <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '10px 14px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.6 }}>
+          💡 Parola değiştirildikten sonra mevcut oturumunuz devam eder. Diğer cihazlarda tekrar giriş yapmanız gerekecektir.
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -505,7 +548,7 @@ function ExcelExportPanel({ db }: { db: DB }) {
 function ActivityPanel({ db, save, showToast, showConfirm }: {
   db: DB;
   save: (fn: (prev: DB) => DB) => void;
-  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
+  showToast: (m: string, t?: string) => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const [typeFilter, setTypeFilter] = useState('all');
@@ -601,7 +644,7 @@ const RESTORE_SECTIONS = [
 ] as const;
 
 function SelectiveRestore({ showToast, showConfirm }: {
-  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
+  showToast: (m: string, t?: string) => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -855,7 +898,7 @@ function detectCsvColumns(headers: string[]): CsvColumnMapping[] {
 function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
   db: DB;
   save: (fn: (prev: DB) => DB) => void;
-  showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void;
+  showToast: (m: string, t?: string) => void;
   showConfirm: (t: string, m: string, ok: () => void, d?: boolean) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1370,7 +1413,7 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
   );
 }
 
-function VeriOnarim({ db, save, showToast, showConfirm }: { db: DB; save: (fn: (prev: DB) => DB) => void; showToast: (m: string, t?: 'success' | 'error' | 'warning' | 'info') => void; showConfirm: (title: string, msg: string, onOk: () => void, danger?: boolean) => void }) {
+function VeriOnarim({ db, save, showToast, showConfirm }: { db: DB; save: (fn: (prev: DB) => DB) => void; showToast: (m: string, t?: string) => void; showConfirm: (title: string, msg: string, onOk: () => void, danger?: boolean) => void }) {
   const [results, setResults] = useState<string[]>([]);
 
   const diagnose = () => {
