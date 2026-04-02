@@ -50,7 +50,6 @@ const TABS = [
   { id: 'stock', label: 'Stok', icon: '🔢', group: 'Analiz' },
   { id: 'monitor', label: 'İzleme', icon: '🔔', group: 'Analiz' },
   { id: 'kontrol', label: 'Kontrol', icon: '⚡', group: 'Analiz' },
-  { id: 'ai', label: 'AI Asistan', icon: '🤖', group: 'Analiz' },
   { id: 'entegrasyon', label: 'Entegrasyon', icon: '🔗', group: 'Sistem' },
   { id: 'partners', label: 'Ortaklar', icon: '🤝', group: 'Sistem' },
   { id: 'settings', label: 'Ayarlar', icon: '⚙️', group: 'Sistem' },
@@ -335,6 +334,7 @@ function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; d
         display: 'flex', flexDirection: 'column',
         transform: open ? 'translateX(0)' : 'translateX(100%)',
         transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+        visibility: open ? 'visible' : 'hidden',
       }}>
         {/* Drawer header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid rgba(99,102,241,0.15)', flexShrink: 0 }}>
@@ -350,9 +350,9 @@ function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; d
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; }}
           >×</button>
         </div>
-        {/* AIAsistan content */}
+        {/* AIAsistan content — her zaman mount, sadece visibility değişir (konuşma korunur) */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-          {open && <AIAsistan db={db} />}
+          <AIAsistan db={db} embedded />
         </div>
       </div>
     </>
@@ -518,7 +518,6 @@ function AppContent() {
           {activeTab === 'stock' && <Stock db={db} save={save} />}
           {activeTab === 'monitor' && <Monitor db={db} save={save} />}
           {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
-          {activeTab === 'ai' && <AIAsistan db={db} />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'partners' && <Partners db={db} save={save} />}
           {activeTab === 'settings' && <Settings db={db} save={save} exportJSON={exportJSON} importJSON={importJSON} />}
