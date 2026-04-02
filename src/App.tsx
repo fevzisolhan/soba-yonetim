@@ -298,10 +298,72 @@ function FAB({ db, save, onOpenAI }: { db: ReturnType<typeof useDB>['db']; save:
   );
 }
 
+// ── AI Drawer ──
+function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; db: ReturnType<typeof useDB>['db'] }) {
+  useEffect(() => {
+    if (open) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (open) window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [open, onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 1100,
+          background: 'rgba(5,10,20,0.65)', backdropFilter: 'blur(6px)',
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transition: 'opacity 0.25s ease',
+        }}
+      />
+      {/* Drawer panel */}
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 'min(520px, 100vw)', zIndex: 1101,
+        background: 'linear-gradient(160deg, #0d1b30 0%, #0a1422 100%)',
+        borderLeft: '1px solid rgba(99,102,241,0.25)',
+        boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column',
+        transform: open ? 'translateX(0)' : 'translateX(100%)',
+        transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+      }}>
+        {/* Drawer header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid rgba(99,102,241,0.15)', flexShrink: 0 }}>
+          <div style={{ width: 38, height: 38, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: '0 4px 16px rgba(99,102,241,0.4)', flexShrink: 0 }}>🤖</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.95rem' }}>Soba AI Asistan</div>
+            <div style={{ color: '#475569', fontSize: '0.72rem' }}>Claude · Gemini · Çevrimdışı</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b', cursor: 'pointer', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', transition: 'all 0.15s', flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; }}
+          >×</button>
+        </div>
+        {/* AIAsistan content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {open && <AIAsistan db={db} />}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function AppContent() {
   const { db, save, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const isOnline = useOnlineStatus();
   const prevOnline = useRef(isOnline);
@@ -464,7 +526,10 @@ function AppContent() {
       </div>
 
       {/* FAB */}
-      <FAB db={db} save={save} onOpenAI={() => navigate('ai')} />
+      <FAB db={db} save={save} onOpenAI={() => setAiDrawerOpen(true)} />
+
+      {/* AI Drawer */}
+      <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} />
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -477,6 +542,12 @@ function AppContent() {
         ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        [data-sonner-toast][data-type='success'] { border-color: rgba(16,185,129,0.35) !important; background: linear-gradient(135deg, rgba(16,185,129,0.12), #0c1628) !important; }
+        [data-sonner-toast][data-type='error'] { border-color: rgba(239,68,68,0.35) !important; background: linear-gradient(135deg, rgba(239,68,68,0.12), #0c1628) !important; }
+        [data-sonner-toast][data-type='warning'] { border-color: rgba(245,158,11,0.35) !important; background: linear-gradient(135deg, rgba(245,158,11,0.10), #0c1628) !important; }
+        [data-sonner-toast][data-type='info'] { border-color: rgba(99,102,241,0.35) !important; background: linear-gradient(135deg, rgba(99,102,241,0.10), #0c1628) !important; }
+        [data-sonner-toaster] [data-sonner-toast] { min-width: 280px !important; max-width: 380px !important; }
+        [data-sonner-toast] [data-icon] { font-size: 1.1rem !important; }
         tr:hover td { background: rgba(255,255,255,0.02) !important; transition: background 0.15s; }
         button:active { transform: scale(0.97) !important; }
         nav::-webkit-scrollbar { width: 0; }
@@ -502,7 +573,32 @@ export default function App() {
   return (
     <ConfirmProvider>
       <AppContent />
-      <Toaster richColors position="bottom-right" />
+      <Toaster
+        richColors
+        position="bottom-right"
+        gap={8}
+        toastOptions={{
+          duration: 3500,
+          style: {
+            background: 'linear-gradient(135deg, #0f1e35, #0c1628)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            borderRadius: '14px',
+            color: '#e2e8f0',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+            padding: '13px 18px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(12px)',
+            gap: '10px',
+          },
+          classNames: {
+            toast: 'soba-toast',
+            title: 'soba-toast-title',
+            description: 'soba-toast-desc',
+          },
+        }}
+      />
     </ConfirmProvider>
   );
 }
