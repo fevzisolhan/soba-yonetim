@@ -3,7 +3,7 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useSoundFeedback } from '@/hooks/useSoundFeedback';
 import { exportToExcel } from '@/lib/excelExport';
-import { genId, formatDate, getCategoryIcon } from '@/lib/utils-tr';
+import { genId, formatDate } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
@@ -92,10 +92,12 @@ export default function Stock({ db, save }: Props) {
                   <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#64748b' }}>Ürün bulunamadı</td></tr>
                 ) : sortedProducts.map(p => {
                   const stockStatus = p.stock === 0 ? { color: '#ef4444', label: '🔴 Bitti', bg: 'rgba(239,68,68,0.1)' } : p.stock <= p.minStock ? { color: '#f59e0b', label: '⚠️ Az', bg: 'rgba(245,158,11,0.1)' } : { color: '#10b981', label: '✓ Normal', bg: 'rgba(16,185,129,0.1)' };
+                  const catIcon = (db.productCategories || []).find(c => c.id === p.category)?.icon || '📦';
+                  const catName = (db.productCategories || []).find(c => c.id === p.category)?.name || p.category;
                   return (
                     <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '12px 16px', color: '#f1f5f9', fontWeight: 600 }}>{getCategoryIcon(p.category)} {p.name}</td>
-                      <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '0.85rem' }}>{p.category}</td>
+                      <td style={{ padding: '12px 16px', color: '#f1f5f9', fontWeight: 600 }}>{catIcon} {p.name}</td>
+                      <td style={{ padding: '12px 16px', color: '#94a3b8', fontSize: '0.85rem' }}>{catName}</td>
                       <td style={{ padding: '12px 16px', color: p.stock === 0 ? '#ef4444' : p.stock <= p.minStock ? '#f59e0b' : '#10b981', fontWeight: 700, fontSize: '1rem' }}>{p.stock}</td>
                       <td style={{ padding: '12px 16px', color: '#64748b' }}>{p.minStock}</td>
                       <td style={{ padding: '12px 16px' }}>
