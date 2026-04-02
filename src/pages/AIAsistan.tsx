@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { formatMoney } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 
-interface Props { db: DB; }
+interface Props { db: DB; embedded?: boolean; }
 interface Message { role: 'user' | 'assistant'; content: string; source?: 'claude' | 'gemini' | 'offline'; }
 
 // ── API Anahtarları (Settings'ten veya localStorage'dan okunur) ──
@@ -48,7 +48,7 @@ async function askClaude(messages: Message[], context: string, key: string, onCh
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: `Sen Soba işletmesi için AI analistsin. Kısa, net, Türkçe yanıt ver.\n\n${context}`,
       messages: messages.filter(m=>m.content).map(m => ({ role: m.role, content: m.content })),
@@ -183,7 +183,7 @@ function ApiSettings({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function AIAsistan({ db }: Props) {
+export default function AIAsistan({ db, embedded = false }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -260,8 +260,9 @@ export default function AIAsistan({ db }: Props) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: embedded ? '100%' : 'calc(100vh - 140px)' }}>
+      {/* Header — sadece standalone modda */}
+      {!embedded && (
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
         <div style={{ width: 46, height: 46, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0, boxShadow: '0 4px 20px rgba(99,102,241,0.4)' }}>🤖</div>
         <div>
@@ -278,6 +279,7 @@ export default function AIAsistan({ db }: Props) {
           {!navigator.onLine && <span style={{ background: 'rgba(100,116,139,0.15)', border: '1px solid rgba(100,116,139,0.3)', borderRadius: 8, padding: '7px 12px', color: '#64748b', fontSize: '0.78rem', fontWeight: 600 }}>🔌 Çevrimdışı</span>}
         </div>
       </div>
+      )}
 
       {/* API Ayarları modalı */}
       {showSettings && (
