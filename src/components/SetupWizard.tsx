@@ -19,6 +19,7 @@ export function getSetupData(): SetupResult | null {
 interface KasaDef { name: string; icon: string; enabled: boolean; }
 interface UrunDef { name: string; category: string; cost: number; price: number; stock: number; minStock: number; }
 interface OrtakDef { name: string; share: number | undefined; phone: string; }
+interface KategoriDef { id: string; name: string; icon: string; enabled: boolean; }
 
 interface SetupResult {
   companyName: string;
@@ -27,6 +28,7 @@ interface SetupResult {
   urunler: { id: string; name: string; category: string; cost: number; price: number; stock: number; minStock: number; createdAt: string; updatedAt: string }[];
   ortaklar: { id: string; name: string; share: number | undefined; phone: string; createdAt: string }[];
   cariOrtaklar: { id: string; name: string; type: 'musteri' | 'tedarikci'; balance: number; phone: string; createdAt: string; updatedAt: string }[];
+  kategoriler: { id: string; name: string; icon: string; createdAt: string }[];
 }
 
 interface Props {
@@ -39,12 +41,12 @@ const DEFAULT_KASALAR: KasaDef[] = [
   { name: 'Pos/Kart', icon: '💳', enabled: false },
 ];
 
-const KATEGORILER = [
-  { id: 'soba', label: 'Soba', icon: '🔥' },
-  { id: 'aksesuar', label: 'Aksesuar', icon: '🔧' },
-  { id: 'yedek', label: 'Yedek Parça', icon: '⚙️' },
-  { id: 'boru', label: 'Boru', icon: '🔩' },
-  { id: 'pelet', label: 'Pelet', icon: '🪵' },
+const DEFAULT_KATEGORILER: KategoriDef[] = [
+  { id: 'soba',     name: 'Soba',        icon: '🔥', enabled: true },
+  { id: 'aksesuar', name: 'Aksesuar',     icon: '🔧', enabled: true },
+  { id: 'yedek',    name: 'Yedek Parça',  icon: '⚙️', enabled: true },
+  { id: 'boru',     name: 'Boru',         icon: '🔩', enabled: true },
+  { id: 'pelet',    name: 'Pelet',        icon: '🪵', enabled: true },
 ];
 
 const emptyUrun = (): UrunDef => ({ name: '', category: 'soba', cost: 0, price: 0, stock: 0, minStock: 5 });
@@ -58,6 +60,7 @@ export default function SetupWizard({ onComplete }: Props) {
   // Form verileri
   const [companyName, setCompanyName] = useState('');
   const [city, setCity] = useState('');
+  const [kategoriler, setKategoriler] = useState<KategoriDef[]>(DEFAULT_KATEGORILER);
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
   const [kasalar, setKasalar] = useState<KasaDef[]>(DEFAULT_KASALAR.map(k => ({ ...k })));
@@ -66,12 +69,13 @@ export default function SetupWizard({ onComplete }: Props) {
   const [ortakCariAc, setOrtakCariAc] = useState<boolean[]>([]);
 
   const STEPS = [
-    { title: 'Hoş Geldiniz', icon: '🔥', desc: 'Kurulum sihirbazı' },
+    { title: 'Hoş Geldiniz',      icon: '🔥', desc: 'Kurulum sihirbazı' },
     { title: 'İşletme Bilgileri', icon: '🏪', desc: 'Firma adı ve konum' },
-    { title: 'Kasa Tanımları', icon: '💰', desc: 'Kullanacağınız kasalar' },
-    { title: 'Ürün Ekle', icon: '📦', desc: 'İsteğe bağlı — atlanabilir' },
-    { title: 'Ortak Tanımla', icon: '🤝', desc: 'İsteğe bağlı — atlanabilir' },
-    { title: 'Güvenlik', icon: '🔒', desc: 'Giriş parolası' },
+    { title: 'Kasa Tanımları',    icon: '💰', desc: 'Kullanacağınız kasalar' },
+    { title: 'Ürün Kategorileri', icon: '🏷️', desc: 'Ürünleri hangi kategorilere ayıracaksınız?' },
+    { title: 'Ürün Ekle',         icon: '📦', desc: 'İsteğe bağlı — atlanabilir' },
+    { title: 'Ortak Tanımla',     icon: '🤝', desc: 'İsteğe bağlı — atlanabilir' },
+    { title: 'Güvenlik',          icon: '🔒', desc: 'Giriş parolası' },
   ];
 
   const setErr = (msg: string) => { setError(msg); setTimeout(() => setError(''), 3500); };
@@ -84,17 +88,20 @@ export default function SetupWizard({ onComplete }: Props) {
       if (!kasalar.some(k => k.enabled)) { setErr('En az bir kasa seçin!'); return false; }
     }
     if (step === 3) {
+      if (!kategoriler.some(k => k.enabled)) { setErr('En az bir kategori seçin!'); return false; }
+    }
+    if (step === 4) {
       // Ürünler isteğe bağlı ama eklendiyse zorunlu alan kontrolü
       for (const u of urunler) {
         if (u.name && (!u.price || !u.cost)) { setErr(`"${u.name}" için alış ve satış fiyatı girin!`); return false; }
       }
     }
-    if (step === 4) {
+    if (step === 5) {
       for (let i = 0; i < ortaklar.length; i++) {
         if (!ortaklar[i].name.trim()) { setErr(`${i + 1}. ortak için ad gerekli!`); return false; }
       }
     }
-    if (step === 5) {
+    if (step === 6) {
       if (pass.length < 4) { setErr('Parola en az 4 karakter olmalı!'); return false; }
       if (pass !== pass2) { setErr('Parolalar eşleşmiyor!'); return false; }
     }
@@ -114,6 +121,10 @@ export default function SetupWizard({ onComplete }: Props) {
       const now = new Date().toISOString();
       const kasaList = kasalar.filter(k => k.enabled).map(k => ({ id: genId(), name: k.name, icon: k.icon }));
 
+      const kategoriList = kategoriler
+        .filter(k => k.enabled)
+        .map(k => ({ id: k.id, name: k.name, icon: k.icon, createdAt: now }));
+
       const urunList = urunler
         .filter(u => u.name.trim())
         .map(u => ({ id: genId(), name: u.name.trim(), category: u.category, cost: u.cost, price: u.price, stock: u.stock, minStock: u.minStock || 5, brand: '', barcode: '', description: '', createdAt: now, updatedAt: now }));
@@ -131,7 +142,7 @@ export default function SetupWizard({ onComplete }: Props) {
           createdAt: now, updatedAt: now,
         }));
 
-      const result: SetupResult = { companyName: companyName.trim(), city: city.trim(), kasalar: kasaList, urunler: urunList, ortaklar: ortakList, cariOrtaklar: cariOrtakList };
+      const result: SetupResult = { companyName: companyName.trim(), city: city.trim(), kasalar: kasaList, kategoriler: kategoriList, urunler: urunList, ortaklar: ortakList, cariOrtaklar: cariOrtakList };
       localStorage.setItem('sobaYonetim_setupData', JSON.stringify(result));
       localStorage.setItem(SETUP_DONE_KEY, '1');
       onComplete(result);
@@ -172,9 +183,10 @@ export default function SetupWizard({ onComplete }: Props) {
           {step === 0 && <StepWelcome steps={STEPS} />}
           {step === 1 && <StepCompany companyName={companyName} setCompanyName={setCompanyName} city={city} setCity={setCity} />}
           {step === 2 && <StepKasa kasalar={kasalar} setKasalar={setKasalar} />}
-          {step === 3 && <StepUrunler urunler={urunler} setUrunler={setUrunler} />}
-          {step === 4 && <StepOrtaklar ortaklar={ortaklar} setOrtaklar={setOrtaklar} ortakCariAc={ortakCariAc} setOrtakCariAc={setOrtakCariAc} />}
-          {step === 5 && <StepPassword pass={pass} setPass={setPass} pass2={pass2} setPass2={setPass2} />}
+          {step === 3 && <StepKategoriler kategoriler={kategoriler} setKategoriler={setKategoriler} />}
+          {step === 4 && <StepUrunler urunler={urunler} setUrunler={setUrunler} kategoriler={kategoriler.filter(k => k.enabled)} />}
+          {step === 5 && <StepOrtaklar ortaklar={ortaklar} setOrtaklar={setOrtaklar} ortakCariAc={ortakCariAc} setOrtakCariAc={setOrtakCariAc} />}
+          {step === 6 && <StepPassword pass={pass} setPass={setPass} pass2={pass2} setPass2={setPass2} />}
         </div>
 
         {/* Hata */}
@@ -192,7 +204,7 @@ export default function SetupWizard({ onComplete }: Props) {
             </button>
           )}
           {/* Atla butonu (ürün ve ortak adımları) */}
-          {(step === 3 || step === 4) && (
+          {(step === 4 || step === 5) && (
             <button onClick={() => setStep(s => s + 1)} style={{ padding: '12px 18px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, background: 'transparent', color: '#475569', cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
               Atla →
             </button>
@@ -272,12 +284,50 @@ function StepKasa({ kasalar, setKasalar }: { kasalar: KasaDef[]; setKasalar: Rea
   );
 }
 
-// ── Adım 3: Ürünler ──
-function StepUrunler({ urunler, setUrunler }: { urunler: UrunDef[]; setUrunler: React.Dispatch<React.SetStateAction<UrunDef[]>> }) {
+// ── Adım 3: Kategoriler ──
+function StepKategoriler({ kategoriler, setKategoriler }: { kategoriler: KategoriDef[]; setKategoriler: React.Dispatch<React.SetStateAction<KategoriDef[]>> }) {
+  const toggle = (i: number) => setKategoriler(prev => prev.map((k, idx) => idx === i ? { ...k, enabled: !k.enabled } : k));
+  const [yeniAd, setYeniAd] = useState('');
+  const [yeniIcon, setYeniIcon] = useState('📦');
+  const addKat = () => {
+    const ad = yeniAd.trim();
+    if (!ad) return;
+    const id = ad.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    setKategoriler(prev => [...prev, { id, name: ad, icon: yeniIcon, enabled: true }]);
+    setYeniAd(''); setYeniIcon('📦');
+  };
+  return (
+    <div>
+      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.82rem', marginBottom: 14 }}>Hangi ürün kategorilerini kullanacaksınız? Sonradan değiştirilebilir.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+        {kategoriler.map((k, i) => (
+          <div key={k.id} onClick={() => toggle(i)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, cursor: 'pointer', border: `1px solid ${k.enabled ? 'rgba(255,87,34,0.4)' : 'rgba(255,255,255,0.07)'}`, background: k.enabled ? 'rgba(255,87,34,0.08)' : 'rgba(255,255,255,0.02)', transition: 'all 0.2s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.3rem' }}>{k.icon}</span>
+              <span style={{ color: k.enabled ? '#f1f5f9' : '#64748b', fontWeight: 600 }}>{k.name}</span>
+            </div>
+            <div style={{ width: 20, height: 20, borderRadius: '50%', background: k.enabled ? '#ff5722' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: '#fff', transition: 'all 0.2s' }}>
+              {k.enabled ? '✓' : ''}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input value={yeniIcon} onChange={e => setYeniIcon(e.target.value)} style={{ ...inp, width: 52, textAlign: 'center', fontSize: '1.2rem' }} placeholder="🏷️" maxLength={2} />
+        <input value={yeniAd} onChange={e => setYeniAd(e.target.value)} onKeyDown={e => e.key === 'Enter' && addKat()} style={{ ...inp, flex: 1 }} placeholder="Yeni kategori adı..." />
+        <button onClick={addKat} style={{ padding: '10px 16px', background: 'rgba(255,87,34,0.12)', border: '1px solid rgba(255,87,34,0.3)', borderRadius: 10, color: '#ff7043', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}>+ Ekle</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Adım 4: Ürünler ──
+function StepUrunler({ urunler, setUrunler, kategoriler }: { urunler: UrunDef[]; setUrunler: React.Dispatch<React.SetStateAction<UrunDef[]>>; kategoriler: KategoriDef[] }) {
   const update = (i: number, field: keyof UrunDef, value: string | number) =>
     setUrunler(prev => prev.map((u, idx) => idx === i ? { ...u, [field]: value } : u));
   const add = () => setUrunler(prev => [...prev, emptyUrun()]);
   const remove = (i: number) => setUrunler(prev => prev.filter((_, idx) => idx !== i));
+  const cats = kategoriler.length > 0 ? kategoriler : DEFAULT_KATEGORILER;
 
   return (
     <div>
@@ -295,7 +345,7 @@ function StepUrunler({ urunler, setUrunler }: { urunler: UrunDef[]; setUrunler: 
               </div>
               <div>
                 <select value={u.category} onChange={e => update(i, 'category', e.target.value)} style={inp}>
-                  {KATEGORILER.map(k => <option key={k.id} value={k.id}>{k.icon} {k.label}</option>)}
+                  {cats.map(k => <option key={k.id} value={k.id}>{k.icon} {k.name}</option>)}
                 </select>
               </div>
               <div>
@@ -318,7 +368,7 @@ function StepUrunler({ urunler, setUrunler }: { urunler: UrunDef[]; setUrunler: 
   );
 }
 
-// ── Adım 4: Ortaklar ──
+// ── Adım 5: Ortaklar ──
 function StepOrtaklar({ ortaklar, setOrtaklar, ortakCariAc, setOrtakCariAc }: {
   ortaklar: OrtakDef[];
   setOrtaklar: React.Dispatch<React.SetStateAction<OrtakDef[]>>;
