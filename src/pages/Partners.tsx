@@ -22,17 +22,61 @@ export default function Partners({ db, save }: Props) {
   const partners: Partner[] = (db as any).partners || [];
   const emanetler: Emanet[] = (db as any).ortakEmanetler || [];
 
+  const normalizeName = (s: string) => s.trim().toLowerCase()
+    .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
+    .replace(/ı/g,'i').replace(/ö/g,'o').replace(/ç/g,'c')
+    .replace(/[^a-z0-9]/g,' ').replace(/\s+/g,' ').trim();
+
+  const similarityScore = (a: string, b: string) => {
+    const na = normalizeName(a), nb = normalizeName(b);
+    if (na === nb) return 100;
+    const longer = na.length > nb.length ? na : nb;
+    const shorter = na.length > nb.length ? nb : na;
+    if (longer.includes(shorter)) return 85;
+    let matches = 0;
+    for (let i = 0; i < shorter.length; i++) if (longer.includes(shorter[i])) matches++;
+    return Math.round((matches / longer.length) * 100);
+  };
+
+  // Cari çapraz kontrol
+  const cariList = (db as any).cari || [];
+
   const savePartner = () => {
-    if (!form.name) { showToast('Ad gerekli!', 'error'); return; }
+    const trimmedName = (form.name || '').trim();
+    if (!trimmedName) { showToast('Ad gerekli!', 'error'); return; }
     const nowIso = new Date().toISOString();
+
+    if (!editId || normalizeName(trimmedName) !== normalizeName(partners.find(p => p.id === editId)?.name || '')) {
+      // Ortak listesinde aynı isim var mı?
+      const tamOrtak = partners.find(p => p.id !== editId && normalizeName(p.name) === normalizeName(trimmedName));
+      if (tamOrtak) {
+        showToast(`"${tamOrtak.name}" adında ortak zaten var! Kayıt engellendi.`, 'error');
+        return;
+      }
+      // Cari listesinde aynı isim var mı?
+      const tamCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && normalizeName(c.name) === normalizeName(trimmedName));
+      if (tamCari) {
+        showToast(`"${tamCari.name}" cari listesinde zaten var! Kayıt engellendi.`, 'error');
+        return;
+      }
+      // Benzer isim kontrolü (ortak + cari birlikte)
+      const benzerOrtak = partners.find(p => p.id !== editId && similarityScore(p.name, trimmedName) >= 70);
+      const benzerCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && similarityScore(c.name, trimmedName) >= 70);
+      const benzer = benzerOrtak || benzerCari;
+      if (benzer) {
+        const devamEt = window.confirm(`⚠️ "${benzer.name}" adında benzer bir kayıt mevcut.\nYine de kaydetmek istiyor musunuz?`);
+        if (!devamEt) return;
+      }
+    }
+
     save(prev => {
       const arr = [...((prev as any).partners || [])];
       if (editId) {
         const i = arr.findIndex((p: Partner) => p.id === editId);
-        if (i >= 0) arr[i] = { ...arr[i], ...form };
+        if (i >= 0) arr[i] = { ...arr[i], ...form, name: trimmedName };
         showToast('Ortak güncellendi!', 'success');
       } else {
-        arr.push({ id: genId(), createdAt: nowIso, name: '', ...form });
+        arr.push({ id: genId(), createdAt: nowIso, name: trimmedName, ...form });
         showToast('Ortak eklendi!', 'success');
       }
       return { ...prev, partners: arr };
