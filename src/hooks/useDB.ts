@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { DB, Kasa } from '@/types';
+import type { DB, Kasa, ProductCategory } from '@/types';
 import { genId } from '@/lib/utils-tr';
 
 // Firebase config
@@ -48,6 +48,13 @@ function makeDefaultDB(): DB {
     pelletSettings: { gramaj: 14, kgFiyat: 6.5, cuvalKg: 15, critDays: 3 },
     ortakEmanetler: [],
     installments: [],
+    productCategories: [
+      { id: 'soba',     name: 'Soba',        icon: '🔥', createdAt: nowIso },
+      { id: 'aksesuar', name: 'Aksesuar',     icon: '🔧', createdAt: nowIso },
+      { id: 'yedek',    name: 'Yedek Parça',  icon: '⚙️', createdAt: nowIso },
+      { id: 'boru',     name: 'Boru',         icon: '🔩', createdAt: nowIso },
+      { id: 'pelet',    name: 'Pelet',        icon: '🪵', createdAt: nowIso },
+    ] as ProductCategory[],
   };
 }
 
@@ -90,6 +97,7 @@ function loadFromStorage(): DB {
     if (!Array.isArray(merged._activityLog)) merged._activityLog = [];
     if (!Array.isArray(merged.ortakEmanetler)) merged.ortakEmanetler = [];
     if (!Array.isArray(merged.installments)) merged.installments = [];
+    if (!Array.isArray(merged.productCategories) || merged.productCategories.length === 0) merged.productCategories = def.productCategories;
     return merged;
   } catch {
     return makeDefaultDB();
