@@ -63,8 +63,11 @@ export default function Sales({ db, save }: Props) {
     const sale: Sale = {
       id: genId(),
       customerId: customerId || undefined,
+      cariId: customerId || undefined,
+      cariName: customerId ? db.cari.find(c => c.id === customerId)?.name : undefined,
       productId: items[0]?.productId,
       productName: items.length === 1 ? items[0].productName : `${items[0].productName} +${items.length - 1}`,
+      productCategory: items[0] ? db.products.find(p => p.id === items[0].productId)?.category : undefined,
       quantity: items.reduce((s, i) => s + i.quantity, 0),
       unitPrice: total / Math.max(1, items.reduce((s, i) => s + i.quantity, 0)),
       cost: items.reduce((s, i) => s + i.cost * i.quantity, 0),
@@ -172,7 +175,7 @@ export default function Sales({ db, save }: Props) {
     });
   };
 
-  let sales = db.sales;
+  let sales = db.sales.filter(s => !s.deleted);
   if (filter !== 'all') sales = sales.filter(s => s.status === filter);
   if (search) sales = sales.filter(s => s.productName.toLowerCase().includes(search.toLowerCase()));
   if (dateFrom) sales = sales.filter(s => s.createdAt >= dateFrom);
