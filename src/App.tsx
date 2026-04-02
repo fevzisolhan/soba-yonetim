@@ -394,7 +394,11 @@ function AppContent() {
       const cari = [...prev.cari, ...yeniCariOrtaklar];
       // Settings
       const settings = { ...prev.settings, companyName: setup.companyName, city: setup.city };
-      return { ...prev, kasalar, products, partners, cari, settings };
+      // Kategoriler
+      const mevcutKatIds = new Set((prev.productCategories || []).map((k: {id:string}) => k.id));
+      const yeniKategoriler = (setup.kategoriler || []).filter((k: {id:string}) => !mevcutKatIds.has(k.id));
+      const productCategories = [...(prev.productCategories || []), ...yeniKategoriler];
+      return { ...prev, kasalar, products, partners, cari, settings, productCategories };
     });
     localStorage.setItem('sobaYonetim_setupApplied', '1');
   // eslint-disable-next-line react-hooks/exhaustive-deps
