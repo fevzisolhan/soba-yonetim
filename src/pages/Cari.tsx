@@ -8,7 +8,7 @@ import type { DB, Cari as CariType } from '@/types';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
-const empty: Omit<CariType, 'id' | 'createdAt' | 'updatedAt'> = { name: '', type: 'musteri', taxNo: '', phone: '', email: '', address: '', balance: 0 };
+const empty: Omit<CariType, 'id' | 'createdAt' | 'updatedAt'> = { name: '', type: 'musteri', taxNo: '', phone: '', email: '', address: '', balance: 0, note: '' };
 
 export default function Cari({ db, save }: Props) {
   const { showToast } = useToast();
@@ -22,7 +22,7 @@ export default function Cari({ db, save }: Props) {
   const [islemModal, setIslemModal] = useState<{ cariId: string; cariName: string; type: 'musteri' | 'tedarikci' } | null>(null);
   const [islemForm, setIslemForm] = useState({ amount: '', kasa: 'nakit', description: '' });
 
-  let cari = db.cari;
+  let cari = db.cari.filter(c => !c.deleted);
   if (filter !== 'all') cari = cari.filter(c => c.type === filter);
   if (search) cari = cari.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search));
   const sorted = [...cari].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -108,6 +108,20 @@ export default function Cari({ db, save }: Props) {
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={openAdd} style={{ background: '#ff5722', border: 'none', borderRadius: 10, color: '#fff', padding: '10px 20px', fontWeight: 700, cursor: 'pointer' }}>+ Yeni Cari</button>
         <button onClick={() => { exportToExcel(db, { sheets: ['cari'] }); showToast('Excel indirildi!', 'success'); }} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 10, color: '#a78bfa', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📊 Excel İndir</button>
+        <button onClick={() => {
+          const rows = sorted.map(c => ({
+            Ad: c.name,
+            Tür: c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi',
+            Bakiye: c.balance,
+            Telefon: c.phone || '',
+            'E-posta': c.email || '',
+            'Vergi No': c.taxNo || '',
+            Adres: c.address || '',
+            Not: (c as any).note || '',
+          }));
+          exportToExcel(rows, 'cari-listesi');
+          showToast('Ekstre indirildi!', 'success');
+        }} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, color: '#10b981', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📥 Ekstre</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9' }} />
         {(['all', 'musteri', 'tedarikci'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: filter === f ? '#ff5722' : '#273548', color: filter === f ? '#fff' : '#94a3b8' }}>
@@ -187,6 +201,10 @@ export default function Cari({ db, save }: Props) {
             <label style={lbl}>Adres</label>
             <textarea value={form.address || ''} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} style={{ ...inp, minHeight: 60 }} />
           </div>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Not / Açıklama</label>
+            <textarea value={(form as any).note || ''} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} style={{ ...inp, minHeight: 50 }} placeholder="Müşteri hakkında notlar..." />
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           <button onClick={handleSave} style={{ flex: 1, background: '#10b981', border: 'none', borderRadius: 10, color: '#fff', padding: '11px 0', fontWeight: 700, cursor: 'pointer' }}>💾 Kaydet</button>
@@ -258,7 +276,22 @@ export default function Cari({ db, save }: Props) {
                 <span style={{ color: '#475569' }}>{l}: </span><span style={{ color: '#e2e8f0', fontWeight: 600 }}>{v}</span>
               </div>
             ))}
+            <button onClick={() => {
+              const rows = [
+                ...detailSales.map(s => ({ Tarih: formatDate(s.createdAt), İşlem: 'Satış', Tutar: s.total, Açıklama: s.productName, Ödeme: s.payment })),
+                ...detailKasa.map(k => ({ Tarih: formatDate(k.createdAt), İşlem: k.type === 'gelir' ? 'Tahsilat' : 'Ödeme', Tutar: k.type === 'gelir' ? k.amount : -k.amount, Açıklama: k.description || '', Ödeme: k.kasa })),
+              ].sort((a, b) => a.Tarih.localeCompare(b.Tarih));
+              exportToExcel(rows, `ekstre-${detail.name}`);
+              showToast('Ekstre indirildi!', 'success');
+            }} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, color: '#10b981', padding: '6px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, marginLeft: 'auto' }}>
+              📥 Ekstre İndir
+            </button>
           </div>
+          {(detail as any).note && (
+            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 9, padding: '9px 13px', marginBottom: 14, fontSize: '0.83rem', color: '#fcd34d' }}>
+              📝 {(detail as any).note}
+            </div>
+          )}
           {/* History Tabs */}
           <div style={{ display: 'flex', gap: 4, marginBottom: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 10, padding: 4 }}>
             {[{ id: 'kasa' as const, label: `💰 Ödemeler (${detailKasa.length})` }, { id: 'satis' as const, label: `🛒 Satışlar (${detailSales.length})` }, { id: 'fatura' as const, label: `🧾 Faturalar (${detailInvoices.length})` }].map(t => (
