@@ -9,11 +9,20 @@ export interface Partner {
   createdAt: string;
 }
 
+// ─── Ürün Kategorisi ─────────────────────────────────────────────────────────
+export interface ProductCategory {
+  id: string;        // 'soba', 'aksesuar', vb.
+  name: string;      // 'Soba', 'Aksesuar', vb.
+  icon: string;      // '🔥', '🔧', vb.
+  createdAt: string;
+}
+
 // ─── Ürün ────────────────────────────────────────────────────────────────────
 export interface Product {
   id: string;
   name: string;
-  category: 'soba' | 'aksesuar' | 'yedek' | 'boru' | 'pelet';
+  category: string;  // dinamik — productCategories tablosundan gelir
+  supplierId?: string; // opsiyonel tedarikçi bağlantısı
   brand?: string;
   cost: number;
   price: number;
@@ -383,5 +392,6 @@ export interface DB {
   ortakEmanetler: OrtakEmanet[];
   installments: Installment[];
   partners?: Partner[];
+  productCategories: ProductCategory[];
 }
 
