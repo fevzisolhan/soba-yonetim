@@ -168,7 +168,9 @@ function QuickIncomeModal({ db, save, onClose, type }: { db: ReturnType<typeof u
 
 function QuickProductModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save']; onClose: () => void }) {
   const { showToast } = useToast();
-  const [form, setForm] = useState({ name: '', category: 'soba', cost: '', price: '', stock: '', minStock: '5' });
+  const cats = db.productCategories || [];
+  const defaultCat = cats[0]?.id || 'soba';
+  const [form, setForm] = useState({ name: '', category: defaultCat, cost: '', price: '', stock: '', minStock: '5' });
 
   const handleSave = () => {
     if (!form.name || !form.price) { showToast('Ad ve fiyat zorunlu!', 'error'); return; }
@@ -184,7 +186,10 @@ function QuickProductModal({ db, save, onClose }: { db: ReturnType<typeof useDB>
       <div>
         <label style={fLbl}>Kategori</label>
         <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={fInp}>
-          {[['soba', '🔥 Soba'], ['aksesuar', '🔧 Aksesuar'], ['yedek', '⚙️ Yedek Parça'], ['boru', '🔩 Boru'], ['pelet', '🪵 Pelet']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {cats.length > 0
+            ? cats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)
+            : [['soba','🔥 Soba'],['aksesuar','🔧 Aksesuar'],['yedek','⚙️ Yedek Parça'],['boru','🔩 Boru'],['pelet','🪵 Pelet']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
+          }
         </select>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
