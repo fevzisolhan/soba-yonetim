@@ -59,11 +59,7 @@ export default function Sales({ db, save }: Props) {
 
   const saveSale = () => {
     if (items.length === 0) { showToast('En az bir ürün ekleyin!', 'error'); return; }
-    if (payment === 'cari' && !customerId) { showToast('Cari ödeme için müşteri seçilmeli!', 'error'); return; }
-    if (!customerId) {
-      const devam = window.confirm('⚠️ Müşteri seçilmedi.\nMüşterisiz satış olarak kaydedilsin mi?');
-      if (!devam) return;
-    }
+    if (!customerId) { showToast('Müşteri seçimi zorunludur! Yeni müşteri eklemek için Cari bölümünü kullanın.', 'error'); return; }
     const nowIso = new Date().toISOString();
     const sale: Sale = {
       id: genId(),
