@@ -235,8 +235,12 @@ export default function Dashboard({ db, onTabChange }: Props) {
       const cat = s.productCategory || 'Diğer';
       map[cat] = (map[cat] || 0) + s.total;
     });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [db.sales]);
+    const cats = db.productCategories || [];
+    return Object.entries(map).map(([id, value]) => ({
+      name: cats.find(c => c.id === id)?.name || id,
+      value,
+    }));
+  }, [db.sales, db.productCategories]);
 
   const recentSales = [...db.sales].filter(s => !s.deleted).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8);
   const recentActivity = [...db._activityLog].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 6);
