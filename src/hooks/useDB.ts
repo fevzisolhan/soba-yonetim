@@ -172,6 +172,8 @@ export function useDB() {
         setDb(cloudDb);
       }
     });
+    // Cleanup: unmount'ta pending Firebase sync'i iptal et
+    return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   }, []);
 
   const save = useCallback((updater: (prev: DB) => DB) => {
@@ -210,7 +212,19 @@ export function useDB() {
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const data = JSON.parse(e.target?.result as string);
+          const raw = JSON.parse(e.target?.result as string);
+          // Güvenlik: default yapıyla merge et, eksik alanları tamamla
+          const def = makeDefaultDB();
+          const data: DB = { ...def, ...raw };
+          // Zorunlu array alanları kontrol et
+          const arrayKeys: (keyof DB)[] = ['products','sales','suppliers','orders','cari','kasa','bankTransactions','matchRules','monitorRules','monitorLog','stockMovements','peletSuppliers','peletOrders','boruSuppliers','boruOrders','invoices','budgets','returns','_activityLog','ortakEmanetler','installments'];
+          for (const key of arrayKeys) {
+            if (!Array.isArray(data[key])) (data as any)[key] = [];
+          }
+          if (!data.kasalar || data.kasalar.length === 0) data.kasalar = def.kasalar;
+          if (!data.company || typeof data.company !== 'object') data.company = def.company;
+          if (!data.pelletSettings) data.pelletSettings = def.pelletSettings;
+          if (!Array.isArray(data.productCategories) || data.productCategories.length === 0) data.productCategories = def.productCategories;
           setDb(data);
           saveToStorage(data);
           saveToFirebase(data);

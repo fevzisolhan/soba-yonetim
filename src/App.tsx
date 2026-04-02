@@ -98,7 +98,7 @@ function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['d
         <label style={fLbl}>Ürün *</label>
         <select value={productId} onChange={e => setProductId(e.target.value)} style={fInp}>
           <option value="">-- Ürün Seç --</option>
-          {db.products.filter(p => p.stock > 0).map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock}, ₺{p.price})</option>)}
+          {db.products.filter(p => !p.deleted && p.stock > 0).map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock}, ₺{p.price})</option>)}
         </select>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -429,19 +429,19 @@ function AppContent() {
   const navigate = useCallback((tab: TabId) => { setActiveTab(tab); setSidebarOpen(false); }, []);
 
   const badges = useMemo(() => ({
-    products: db.products.filter(p => p.stock === 0).length + db.products.filter(p => p.stock > 0 && p.stock <= p.minStock).length,
+    products: db.products.filter(p => !p.deleted && p.stock === 0).length + db.products.filter(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock).length,
     sales: db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === new Date().toDateString()).length,
     suppliers: db.orders.filter(o => o.status === 'bekliyor').length,
     bank: db.bankTransactions.filter(t => t.status === 'unmatched').length,
     monitor: db.monitorRules.filter(r => r.active).reduce((c, r) => {
-      if (r.type === 'stok_sifir' && db.products.some(p => p.stock === 0)) return c + 1;
-      if (r.type === 'stok_min' && db.products.some(p => p.stock > 0 && p.stock <= p.minStock)) return c + 1;
+      if (r.type === 'stok_sifir' && db.products.some(p => !p.deleted && p.stock === 0)) return c + 1;
+      if (r.type === 'stok_min' && db.products.some(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock)) return c + 1;
       return c;
     }, 0),
   }), [db]);
 
-  const totalKasa = useMemo(() => db.kasa.reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
-  const nakit = useMemo(() => db.kasa.filter(k => k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
+  const totalKasa = useMemo(() => db.kasa.filter(k => !k.deleted).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
+  const nakit = useMemo(() => db.kasa.filter(k => !k.deleted && k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
   const groups = ['Ana', 'Tedarik', 'Finans', 'Analiz', 'Sistem'];
 
   // Keyboard shortcuts

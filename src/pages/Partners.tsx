@@ -19,8 +19,8 @@ export default function Partners({ db, save }: Props) {
   const [form, setForm] = useState<Partial<Partner>>({ name: '', share: undefined, phone: '', note: '' });
   const [emanetForm, setEmanetForm] = useState({ partnerId: '', amount: '', note: '' });
 
-  const partners: Partner[] = (db as any).partners || [];
-  const emanetler: Emanet[] = (db as any).ortakEmanetler || [];
+  const partners: Partner[] = db.partners || [];
+  const emanetler: Emanet[] = db.ortakEmanetler || [];
 
   const normalizeName = (s: string) => s.trim().toLowerCase()
     .replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s')
@@ -39,7 +39,7 @@ export default function Partners({ db, save }: Props) {
   };
 
   // Cari çapraz kontrol
-  const cariList = (db as any).cari || [];
+  const cariList = db.cari || [];
 
   const savePartner = () => {
     const trimmedName = (form.name || '').trim();

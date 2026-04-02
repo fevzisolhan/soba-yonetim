@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
-import { exportToExcel } from '@/lib/excelExport';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
 import type { DB, BankTransaction } from '@/types';
 
@@ -90,9 +90,9 @@ export default function Bank({ db, save }: Props) {
         createdAt: nowIso,
         updatedAt: nowIso,
       };
-      // Eğer cari eşleşmişse bakiyeyi güncelle
+      // Eğer cari eşleşmişse bakiyeyi güncelle (gelir=tahsilat → borç azalır, gider=ödeme → borç azalır)
       let cari = prev.cari;
-      if (tx.matchedCariId && isGelir) {
+      if (tx.matchedCariId) {
         cari = cari.map(c => c.id === tx.matchedCariId
           ? { ...c, balance: (c.balance || 0) - tx.amount, lastTransaction: nowIso, updatedAt: nowIso }
           : c
@@ -121,7 +121,7 @@ export default function Bank({ db, save }: Props) {
           if (t.status !== 'matched') return t;
           const isGelir = t.type === 'income' || t.type === 'credit';
           kasa.push({ id: genId(), type: isGelir ? 'gelir' as const : 'gider' as const, category: isGelir ? 'banka_gelir' : 'banka_gider', amount: t.amount, kasa: 'banka', description: `[Banka] ${t.description}`, cariId: t.matchedCariId, relatedId: t.id, createdAt: nowIso, updatedAt: nowIso });
-          if (t.matchedCariId && isGelir) {
+          if (t.matchedCariId) {
             cari = cari.map(c => c.id === t.matchedCariId ? { ...c, balance: (c.balance || 0) - t.amount, lastTransaction: nowIso, updatedAt: nowIso } : c);
           }
           return { ...t, status: 'confirmed' as const, updatedAt: nowIso };
@@ -135,7 +135,27 @@ export default function Bank({ db, save }: Props) {
   // ── Sil ─────────────────────────────────────────────────────────────────────
   const handleDelete = (id: string) => {
     showConfirm('İşlemi Sil', 'Bu banka işlemini silmek istiyor musunuz?', () => {
-      save(prev => ({ ...prev, bankTransactions: prev.bankTransactions.filter(t => t.id !== id) }));
+      const nowIso = new Date().toISOString();
+      save(prev => {
+        const tx = prev.bankTransactions.find(t => t.id === id);
+        if (!tx) return prev;
+
+        let kasa = prev.kasa;
+        let cari = prev.cari;
+
+        // Onaylı işlemse ilişkili kasa kaydını soft-delete et ve cari bakiyeyi geri al
+        if (tx.status === 'confirmed') {
+          kasa = kasa.map(k => k.relatedId === tx.id ? { ...k, deleted: true, updatedAt: nowIso } : k);
+          if (tx.matchedCariId) {
+            cari = cari.map(c => c.id === tx.matchedCariId
+              ? { ...c, balance: (c.balance || 0) + tx.amount, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+            );
+          }
+        }
+
+        return { ...prev, bankTransactions: prev.bankTransactions.filter(t => t.id !== id), kasa, cari };
+      });
       showToast('Silindi!', 'success');
     });
   };
@@ -185,14 +205,19 @@ export default function Bank({ db, save }: Props) {
           </button>
         )}
         <button onClick={() => {
-          exportToExcel(sorted.map(t => ({
+          const rows = sorted.map(t => ({
             Tarih: formatDate(t.date),
             Açıklama: t.description,
             Tutar: t.amount,
             Tür: (t.type === 'income' || t.type === 'credit') ? 'Gelen' : 'Giden',
             Durum: STATUS_LABEL[t.status || 'unmatched']?.label || '',
             Cari: t.matchedCariId ? (db.cari.find(c => c.id === t.matchedCariId)?.name || '') : '',
-          })), 'banka-islemleri');
+          }));
+          const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
+          ws['!cols'] = [{ wch: 18 }, { wch: 35 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 20 }];
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, 'Banka İşlemleri');
+          XLSX.writeFile(wb, `banka-islemleri-${new Date().toISOString().slice(0, 10)}.xlsx`);
           showToast('Excel indirildi!', 'success');
         }} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#818cf8', padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📥 Excel</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', minWidth: 120 }} />

@@ -162,13 +162,19 @@ export default function Suppliers({ db, save }: Props) {
         const totalOrderAmount = order.amount || 1;
         const nakliyeToplam = order.nakliye || 0;
 
-        // Stok güncelle + alış fiyatına nakliye payı ekle
+        // Stok güncelle + ağırlıklı ortalama maliyet hesapla (nakliye dahil)
         const products = prev.products.map(p => {
           const item = order.items.find(i => i.productId === p.id);
           if (!item) return p;
           const nakliyePay = nakliyeToplam > 0 ? (item.lineTotal / totalOrderAmount) * nakliyeToplam / item.qty : 0;
           const yeniMaliyet = item.unitCost + nakliyePay;
-          return { ...p, stock: p.stock + item.qty, cost: Math.round(yeniMaliyet * 100) / 100 };
+          // Ağırlıklı ortalama: (eski maliyet × eski stok + yeni maliyet × yeni adet) / toplam
+          const mevcutStok = p.stock || 0;
+          const toplamStok = mevcutStok + item.qty;
+          const ortMaliyet = toplamStok > 0
+            ? ((p.cost * mevcutStok) + (yeniMaliyet * item.qty)) / toplamStok
+            : yeniMaliyet;
+          return { ...p, stock: toplamStok, cost: Math.round(ortMaliyet * 100) / 100 };
         });
         const stockMovements = [...prev.stockMovements, ...order.items.map(i => ({
           id: genId(), productId: i.productId, productName: i.productName, type: 'giris' as const,
@@ -177,10 +183,11 @@ export default function Suppliers({ db, save }: Props) {
           note: 'Sipariş alındı', date: new Date().toISOString(),
         }))];
 
-        // Cari borç ekle — sadece ID ile eşleş, isim bazlı çift kayıt hatasını önle
+        // Cari borç ekle — nakliye dahil toplam tutar ile
+        const cariTutar = order.amount + (order.nakliye || 0);
         const cari = prev.cari.map(c => {
           if (c.id === order.supplierId) {
-            return { ...c, balance: (c.balance || 0) + order.amount, updatedAt: new Date().toISOString() };
+            return { ...c, balance: (c.balance || 0) + cariTutar, updatedAt: new Date().toISOString() };
           }
           return c;
         });
