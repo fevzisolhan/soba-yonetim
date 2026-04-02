@@ -28,7 +28,7 @@ export default function Products({ db, save }: Props) {
   else if (filter !== 'all') products = products.filter(p => p.category === filter);
   if (search) products = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || (p.brand || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode || '').includes(search));
 
-  const openAdd = () => { setForm({ ...empty, category: 'soba' }); setEditId(null); setModalOpen(true); };
+  const openAdd = () => { const defCat = productCats[0]?.id || 'soba'; setForm({ ...empty, category: defCat }); setEditId(null); setModalOpen(true); };
   const openEdit = (p: Product) => { setForm({ ...p }); setEditId(p.id); setModalOpen(true); };
 
   const handleSave = () => {
@@ -41,7 +41,7 @@ export default function Products({ db, save }: Props) {
         if (i >= 0) products[i] = { ...products[i], ...form, updatedAt: nowIso } as Product;
         showToast('Ürün güncellendi!', 'success');
       } else {
-        const np: Product = { id: genId(), createdAt: nowIso, updatedAt: nowIso, name: '', category: 'soba', cost: 0, price: 0, stock: 0, minStock: 5, ...form } as Product;
+        const np: Product = { id: genId(), createdAt: nowIso, updatedAt: nowIso, name: '', category: productCats[0]?.id || 'soba', cost: 0, price: 0, stock: 0, minStock: 5, ...form } as Product;
         products.push(np);
         showToast('Ürün eklendi!', 'success');
       }
@@ -146,7 +146,7 @@ export default function Products({ db, save }: Props) {
           </div>
           <div>
             <label style={lbl}>Kategori</label>
-            <select value={form.category || 'soba'} onChange={e => f('category', e.target.value)} style={inp}>
+            <select value={form.category || productCats[0]?.id || 'soba'} onChange={e => f('category', e.target.value)} style={inp}>
               {productCats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
             </select>
           </div>
