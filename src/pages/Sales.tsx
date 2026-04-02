@@ -91,27 +91,26 @@ export default function Sales({ db, save }: Props) {
         return { ...p, stock: Math.max(0, p.stock - item.quantity) };
       });
 
-      // Tahsil edilen tutar kasaya girer
+      // Tahsil edilen tutar kasaya girer (cari ödemede ve tahsilat girilmemişse kasaya yazma)
       const kasaEntries: typeof prev.kasa = [];
-      if (tahsilatNum > 0) {
+      const fiiliTahsilat = tahsilat === '' && payment === 'cari' ? 0 : tahsilatNum;
+      if (fiiliTahsilat > 0) {
         const kasaId = payment === 'kart' ? 'banka' : payment === 'havale' ? 'banka' : 'nakit';
         kasaEntries.push({
-          id: genId(), type: 'gelir' as const, category: 'satis', amount: tahsilatNum,
+          id: genId(), type: 'gelir' as const, category: 'satis', amount: fiiliTahsilat,
           kasa: kasaId, description: `Satış: ${sale.productName}`, relatedId: sale.id,
           cariId: customerId || undefined, createdAt: nowIso, updatedAt: nowIso,
         });
       }
 
-      // Kalan tutar cari'ye borç olarak yaz (müşteri seçildiyse)
+      // Kalan tutar cari'ye borç olarak yaz
       let cari = prev.cari;
-      const kalanTutar = total - tahsilatNum;
+      const kalanTutar = total - fiiliTahsilat;
       if (customerId && kalanTutar > 0) {
         cari = cari.map(c => c.id === customerId
           ? { ...c, balance: (c.balance || 0) + kalanTutar, lastTransaction: nowIso, updatedAt: nowIso }
           : c
         );
-      } else if (payment === 'cari' && customerId) {
-        cari = cari.map(c => c.id === customerId ? { ...c, balance: (c.balance || 0) + total, lastTransaction: nowIso } : c);
       }
 
       const stockMovements = [...prev.stockMovements, ...items.map(i => ({
@@ -153,21 +152,29 @@ export default function Sales({ db, save }: Props) {
         let kasa = prev.kasa;
         let cari = prev.cari;
 
-        if (sale.payment === 'cari' && sale.customerId) {
-          // Cari ödeme: bakiyeyi geri al (müşteri artık bu tutarı borçlu değil)
-          cari = cari.map(c =>
-            c.id === sale.customerId
-              ? { ...c, balance: (c.balance || 0) - sale.total, lastTransaction: nowIso, updatedAt: nowIso }
-              : c
-          );
-        } else {
-          // Nakit/kart/havale: iade gideri oluştur, doğru kasayı kullan
+        // İlişkili kasa kayıtlarını bul (tahsil edilmiş tutar)
+        const relatedKasaEntries = prev.kasa.filter(k => !k.deleted && k.relatedId === sale.id && k.type === 'gelir');
+        const tahsilEdilen = relatedKasaEntries.reduce((s, k) => s + k.amount, 0);
+
+        // Tahsil edilen kısmı iade gideri olarak yaz
+        if (tahsilEdilen > 0) {
           const kasaId = (sale.payment === 'kart' || sale.payment === 'havale') ? 'banka' : 'nakit';
-          const kasaEntry = {
-            id: genId(), type: 'gider' as const, category: 'iade', amount: sale.total, kasa: kasaId,
+          kasa = [...kasa, {
+            id: genId(), type: 'gider' as const, category: 'iade', amount: tahsilEdilen, kasa: kasaId,
             description: `İade: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
-          };
-          kasa = [...kasa, kasaEntry];
+          }];
+        }
+
+        // Cari'ye yazılmış borcu geri al (customerId veya cariId)
+        const cariId = sale.cariId || sale.customerId;
+        if (cariId) {
+          const cariyeYazilan = sale.total - tahsilEdilen;
+          if (cariyeYazilan > 0) {
+            cari = cari.map(c => c.id === cariId
+              ? { ...c, balance: (c.balance || 0) - cariyeYazilan, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+            );
+          }
         }
 
         return { ...prev, sales, products, kasa, cari };

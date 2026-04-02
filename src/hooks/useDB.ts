@@ -105,13 +105,15 @@ function loadFromStorage(): DB {
 }
 
 let _isSaving = false;
-let _lastSaveTime = 0;
+let _pendingDb: DB | null = null;
 
 function saveToStorage(db: DB): boolean {
-  const now = Date.now();
-  if (_isSaving || now - _lastSaveTime < 200) return false;
+  if (_isSaving) {
+    // Kayıt devam ederken yeni veri geldi → beklet
+    _pendingDb = db;
+    return false;
+  }
   _isSaving = true;
-  _lastSaveTime = now;
   try {
     db._version = (db._version || 0) + 1;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
@@ -120,6 +122,12 @@ function saveToStorage(db: DB): boolean {
     return false;
   } finally {
     _isSaving = false;
+    // Bekleyen veri varsa hemen yaz
+    if (_pendingDb) {
+      const pending = _pendingDb;
+      _pendingDb = null;
+      saveToStorage(pending);
+    }
   }
 }
 

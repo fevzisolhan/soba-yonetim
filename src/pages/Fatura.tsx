@@ -102,7 +102,11 @@ export default function Fatura({ db, save }: Props) {
       const invoices = [...(prev.invoices || [])];
       if (editId) {
         const i = invoices.findIndex(inv => inv.id === editId);
-        if (i >= 0) invoices[i] = { ...invoices[i], ...form, items: validItems, subtotal, vatTotal, total, updatedAt: nowIso };
+        if (i >= 0) {
+          // Mevcut kasaEntryId ve cariUpdated'ı koru (durum geçişlerinde kullanılıyor)
+          const { kasaEntryId, cariUpdated } = invoices[i];
+          invoices[i] = { ...invoices[i], ...form, items: validItems, subtotal, vatTotal, total, kasaEntryId, cariUpdated, updatedAt: nowIso };
+        }
         showToast('Fatura güncellendi!');
       } else {
         invoices.push({ id: genId(), invoiceNo: nextInvoiceNo(invoices, form.type), ...form, items: validItems, subtotal, vatTotal, total, createdAt: nowIso, updatedAt: nowIso });
