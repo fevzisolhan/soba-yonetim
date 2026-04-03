@@ -62,7 +62,7 @@ export interface Sale {
   subtotal: number;
   total: number;
   profit: number;
-  payment: 'nakit' | 'kart' | 'havale' | 'cari';
+  payment: string;
   status: 'tamamlandi' | 'iade' | 'iptal' | 'completed';
   items: SaleItem[];
   returnedAt?: string;

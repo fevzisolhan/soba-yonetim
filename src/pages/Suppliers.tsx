@@ -29,6 +29,7 @@ export default function Suppliers({ db, save }: Props) {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [orderNote, setOrderNote] = useState('');
   const [nakliye, setNakliye] = useState(0);
+  const [orderProductCat, setOrderProductCat] = useState('');
 
   const addOrderItem = (productId: string) => {
     const p = db.products.find(x => x.id === productId);
@@ -118,7 +119,7 @@ export default function Suppliers({ db, save }: Props) {
       return { ...prev, orders: [...prev.orders, order], suppliers };
     });
     showToast('Sipariş oluşturuldu!');
-    setOrderItems([]); setOrderSupplierId(''); setDeliveryDate(''); setOrderNote(''); setNakliye(0);
+    setOrderItems([]); setOrderSupplierId(''); setDeliveryDate(''); setOrderNote(''); setNakliye(0); setOrderProductCat('');
     setOrderModal(false);
   };
 
@@ -181,6 +182,45 @@ export default function Suppliers({ db, save }: Props) {
         newState = { ...newState, products, stockMovements, cari };
       }
       return newState;
+    });
+  };
+
+  const revertOrder = (id: string) => {
+    showConfirm('Sipariş Geri Al', 'Bu siparişi geri almak istiyor musunuz? Stok ve cari değişiklikleri geri alınacak.', () => {
+      save(prev => {
+        const order = prev.orders.find(o => o.id === id);
+        if (!order || order.status !== 'tamamlandi') return prev;
+        const nowIso = new Date().toISOString();
+
+        // Stokları geri düşür
+        const products = prev.products.map(p => {
+          const item = order.items.find(i => i.productId === p.id);
+          if (!item) return p;
+          return { ...p, stock: Math.max(0, p.stock - item.qty) };
+        });
+
+        // Stok hareketlerini ekle (çıkış)
+        const stockMovements = [...prev.stockMovements, ...order.items.map(i => ({
+          id: genId(), productId: i.productId, productName: i.productName, type: 'cikis' as const,
+          amount: i.qty, before: prev.products.find(p => p.id === i.productId)?.stock || 0,
+          after: Math.max(0, (prev.products.find(p => p.id === i.productId)?.stock || 0) - i.qty),
+          note: 'Sipariş geri alındı', date: nowIso,
+        }))];
+
+        // Cari borcu geri al
+        const cariTutar = order.amount + (order.nakliye || 0);
+        const cari = prev.cari.map(c => {
+          if (c.id === order.supplierId) {
+            return { ...c, balance: (c.balance || 0) - cariTutar, updatedAt: nowIso };
+          }
+          return c;
+        });
+
+        const orders = prev.orders.map(o => o.id === id ? { ...o, status: 'bekliyor' as const, updatedAt: nowIso } : o);
+
+        return { ...prev, orders, products, stockMovements, cari };
+      });
+      showToast('Sipariş geri alındı! Stok ve cari güncellendi.');
     });
   };
 
@@ -300,6 +340,9 @@ export default function Suppliers({ db, save }: Props) {
                       {o.status === 'yolda' && (
                         <button onClick={() => updateOrderStatus(o.id, 'tamamlandi')} style={{ background: 'rgba(16,185,129,0.1)', border: 'none', borderRadius: 6, color: '#10b981', padding: '4px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>✓ Tamamla</button>
                       )}
+                      {o.status === 'tamamlandi' && (
+                        <button onClick={() => revertOrder(o.id)} style={{ background: 'rgba(245,158,11,0.1)', border: 'none', borderRadius: 6, color: '#f59e0b', padding: '4px 8px', cursor: 'pointer', fontSize: '0.78rem' }}>↩ Geri Al</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -350,10 +393,18 @@ export default function Suppliers({ db, save }: Props) {
             {db.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <label style={lbl}>Ürün Ekle</label>
-          <select onChange={e => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }} style={{ ...inp, marginBottom: 12 }}>
-            <option value="">-- Ürün Seç --</option>
-            {db.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <select value={orderProductCat} onChange={e => setOrderProductCat(e.target.value)} style={{ ...inp, flex: '0 0 120px' }}>
+              <option value="">Tüm Kat.</option>
+              {[...new Set(db.products.filter(p => !p.deleted).map(p => p.category).filter(Boolean))].map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select onChange={e => { if (e.target.value) { addOrderItem(e.target.value); e.target.value = ''; } }} style={{ ...inp, flex: 1 }}>
+              <option value="">-- Ürün Seç --</option>
+              {db.products.filter(p => !p.deleted && (!orderProductCat || p.category === orderProductCat)).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
           {orderItems.map(item => (
             <div key={item.productId} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, background: '#0f172a', borderRadius: 8, padding: '8px 10px' }}>
               <span style={{ flex: 1, color: '#f1f5f9', fontSize: '0.88rem' }}>{item.productName}</span>

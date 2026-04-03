@@ -201,6 +201,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
 
   const { claude: claudeKey, gemini: geminiKey } = getKeys();
   const hasKeys = !!(claudeKey || geminiKey);
+  const isOnline = navigator.onLine;
 
   const send = useCallback(async (text?: string) => {
     const userMsg = (text || input).trim();
@@ -273,7 +274,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
         <div>
           <h2 style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '1.1rem' }}>Soba AI Asistan</h2>
           <p style={{ color: '#475569', fontSize: '0.82rem' }}>
-            {hasKeys ? (claudeKey ? '✅ Claude (birincil)' : '') + (geminiKey ? ' + ✅ Gemini (yedek)' : '') : '⚠️ API anahtarı girilmemiş — ⚙️ ayarlara girin'}
+            {!isOnline ? '🔌 Çevrimdışı — temel sorulara yanıt verir' : hasKeys ? (claudeKey ? '✅ Claude (birincil)' : '') + (geminiKey ? ' + ✅ Gemini (yedek)' : '') : '⚠️ API anahtarı girilmemiş — ⚙️ ayarlara girin'}
           </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -303,7 +304,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
           <p style={{ color: '#334155', fontSize: '0.8rem', marginBottom: 8, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hızlı Sorular</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {QUICK_PROMPTS.map(p => (
-              <button key={p.label} onClick={() => send(p.prompt)} disabled={loading} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, color: '#94a3b8', padding: '8px 14px', cursor: 'pointer', fontSize: '0.83rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{p.label}</button>
+              <button key={p.label} onClick={() => send(p.prompt)} disabled={loading || (!isOnline && !hasKeys)} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, color: loading || (!isOnline && !hasKeys) ? '#334155' : '#94a3b8', padding: '8px 14px', cursor: loading || (!isOnline && !hasKeys) ? 'not-allowed' : 'pointer', fontSize: '0.83rem', fontWeight: 600, whiteSpace: 'nowrap', opacity: loading || (!isOnline && !hasKeys) ? 0.5 : 1 }}>{p.label}</button>
             ))}
           </div>
         </div>
@@ -364,7 +365,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
       {messages.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
           {QUICK_PROMPTS.slice(0,4).map(p=>(
-            <button key={p.label} onClick={() => send(p.prompt)} disabled={loading} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, color: '#334155', padding: '5px 11px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>{p.label}</button>
+            <button key={p.label} onClick={() => send(p.prompt)} disabled={loading || (!isOnline && !hasKeys)} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8, color: '#334155', padding: '5px 11px', cursor: loading || (!isOnline && !hasKeys) ? 'not-allowed' : 'pointer', fontSize: '0.78rem', fontWeight: 600, opacity: loading || (!isOnline && !hasKeys) ? 0.5 : 1 }}>{p.label}</button>
           ))}
         </div>
       )}
