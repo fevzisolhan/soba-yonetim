@@ -15,7 +15,7 @@ export default function Cari({ db, save }: Props) {
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
   const [modalOpen, setModalOpen] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'musteri' | 'tedarikci'>('all');
+  const [filter, setFilter] = useState<'all' | 'musteri' | 'tedarikci' | 'ortak'>('all');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<Partial<CariType>>(empty);
   const [editId, setEditId] = useState<string | null>(null);
@@ -24,7 +24,8 @@ export default function Cari({ db, save }: Props) {
   const [islemForm, setIslemForm] = useState({ amount: '', kasa: 'nakit', description: '' });
 
   let cari = db.cari.filter(c => !c.deleted);
-  if (filter !== 'all') cari = cari.filter(c => c.type === filter);
+  if (filter === 'ortak') cari = cari.filter(c => c.ortak);
+  else if (filter !== 'all') cari = cari.filter(c => c.type === filter && !c.ortak);
   if (search) cari = cari.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone || '').includes(search));
   const sorted = [...cari].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 
@@ -168,9 +169,9 @@ export default function Cari({ db, save }: Props) {
           showToast('Ekstre indirildi!', 'success');
         }} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, color: '#10b981', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📥 Ekstre</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9' }} />
-        {(['all', 'musteri', 'tedarikci'] as const).map(f => (
+        {(['all', 'musteri', 'tedarikci', 'ortak'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: filter === f ? '#ff5722' : '#273548', color: filter === f ? '#fff' : '#94a3b8' }}>
-            {f === 'all' ? 'Tümü' : f === 'musteri' ? '👤 Müşteri' : '🏭 Tedarikçi'}
+            {f === 'all' ? 'Tümü' : f === 'musteri' ? '👤 Müşteri' : f === 'tedarikci' ? '🏭 Tedarikçi' : '🤝 Ortak'}
           </button>
         ))}
       </div>

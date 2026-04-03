@@ -69,20 +69,25 @@ function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['d
   const [qty, setQty] = useState(1);
   const [payment, setPayment] = useState<'nakit' | 'kart' | 'havale' | 'cari'>('nakit');
   const [discount, setDiscount] = useState(0);
+  const [cariId, setCariId] = useState('');
 
   const product = db.products.find(p => p.id === productId);
   const subtotal = product ? product.price * qty : 0;
   const total = Math.max(0, subtotal - discount);
   const profit = product ? (product.price - product.cost) * qty - discount : 0;
+  const customers = db.cari.filter(c => !c.deleted && c.type === 'musteri');
 
   const handleSave = () => {
     if (!product) { showToast('Ürün seçin!', 'error'); return; }
     if (product.stock < qty) { showToast(`Stok yetersiz! Mevcut: ${product.stock}`, 'error'); return; }
+    if (payment === 'cari' && !cariId) { showToast('Cari satış için müşteri seçin!', 'error'); return; }
     const nowIso = new Date().toISOString();
+    const selectedCari = cariId ? db.cari.find(c => c.id === cariId) : undefined;
     const sale = {
       id: genId(), productId: product.id, productName: product.name, productCategory: product.category,
       quantity: qty, unitPrice: product.price, cost: product.cost, discount, discountAmount: discount,
       subtotal, total, profit, payment, status: 'tamamlandi' as const,
+      cariId: selectedCari?.id, cariName: selectedCari?.name, customerName: selectedCari?.name,
       items: [{ productId: product.id, productName: product.name, quantity: qty, unitPrice: product.price, cost: product.cost, total }],
       createdAt: nowIso, updatedAt: nowIso,
     };
@@ -91,6 +96,9 @@ function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['d
       sales: [...prev.sales, sale],
       products: prev.products.map(p => p.id === productId ? { ...p, stock: p.stock - qty } : p),
       kasa: payment !== 'cari' ? [...prev.kasa, { id: genId(), type: 'gelir' as const, category: 'satis', amount: total, kasa: payment === 'nakit' ? 'nakit' : 'banka', description: `Hızlı Satış: ${product.name}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso }] : prev.kasa,
+      cari: payment === 'cari' && cariId
+        ? prev.cari.map(c => c.id === cariId ? { ...c, balance: (c.balance || 0) + total, lastTransaction: nowIso, updatedAt: nowIso } : c)
+        : prev.cari,
     }));
     showToast(`✅ Satış kaydedildi! ${formatMoney(total)}`, 'success');
     onClose();
@@ -116,6 +124,13 @@ function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['d
             <button key={p} onClick={() => setPayment(p)} style={{ flex: 1, padding: '8px 4px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', background: payment === p ? '#ff5722' : 'rgba(255,255,255,0.05)', color: payment === p ? '#fff' : '#64748b' }}>{p}</button>
           ))}
         </div>
+      </div>
+      <div>
+        <label style={fLbl}>Müşteri <span style={{ color: '#475569', fontWeight: 400 }}>({payment === 'cari' ? 'zorunlu' : 'isteğe bağlı'})</span></label>
+        <select value={cariId} onChange={e => setCariId(e.target.value)} style={fInp}>
+          <option value="">-- Müşteri Seç --</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
       </div>
       {product && (
         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 10, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -447,6 +462,20 @@ function AppContent() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Ctrl+Shift+E → Sistem Sağlığı sayfasına git (hata log kısayolu)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'E') {
+        e.preventDefault();
+        setActiveTab('saglık' as TabId);
+        setSidebarOpen(false);
+        showToast('🏥 Sistem Sağlığı açıldı (Ctrl+Shift+E)', 'info' as any);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showToast]);
 
   const navigate = useCallback((tab: TabId) => { setActiveTab(tab); setSidebarOpen(false); }, []);
 

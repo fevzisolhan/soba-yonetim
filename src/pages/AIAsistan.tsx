@@ -286,6 +286,19 @@ export default function AIAsistan({ db, embedded = false }: Props) {
       </div>
       )}
 
+      {/* Embedded modda kompakt header */}
+      {embedded && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <span style={{ color: '#475569', fontSize: '0.78rem', flex: 1 }}>
+            {hasKeys ? (claudeKey ? '✅ Claude' : '') + (geminiKey ? (claudeKey ? ' + ' : '') + '✅ Gemini' : '') : '⚠️ API anahtarı yok'}
+          </span>
+          {messages.length > 0 && (
+            <button onClick={() => setMessages([])} style={{ background: 'none', border: 'none', color: '#475569', padding: '4px 8px', cursor: 'pointer', fontSize: '0.82rem' }}>🗑️</button>
+          )}
+          <button onClick={() => setShowSettings(s => !s)} title="API Ayarları" style={{ background: showSettings ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.04)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 6, color: '#818cf8', padding: '5px 10px', cursor: 'pointer', fontSize: '0.82rem' }}>⚙️ API</button>
+        </div>
+      )}
+
       {/* API Ayarları modalı */}
       {showSettings && (
         <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 14, padding: '16px 20px', marginBottom: 16 }}>

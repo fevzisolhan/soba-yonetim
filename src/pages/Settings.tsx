@@ -7,7 +7,7 @@ import type { SoundSettings, SoundTheme, SoundType } from '@/hooks/useSoundFeedb
 import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
-import { getStoredHash, hashPass } from '@/components/LoginScreen';
+import { hashPass, verifyHash, getLoginFailLogs, clearLoginFailLogs, DEFAULT_PASSWORD, getStoredHash } from '@/components/LoginScreen';
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
@@ -247,8 +247,6 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
-  const PASS_KEY = 'sobaYonetim_appPass';
-
   const handleChange = async () => {
     if (!oldPass) { showToast('Mevcut parolayı girin!', 'error'); return; }
     if (newPass.length < 4) { showToast('Yeni parola en az 4 karakter olmalı!', 'error'); return; }
@@ -256,9 +254,9 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
 
     setLoading(true);
     const oldHash = await hashPass(oldPass);
-    const stored = getStoredHash();
+    const ok = await verifyHash(oldHash);
 
-    if (oldHash !== stored) {
+    if (!ok) {
       showToast('Mevcut parola yanlış!', 'error');
       setLoading(false);
       setOldPass('');
@@ -266,7 +264,7 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
     }
 
     const newHash = await hashPass(newPass);
-    localStorage.setItem(PASS_KEY, newHash);
+    localStorage.setItem('sobaYonetim_appPass', newHash);
     setOldPass('');
     setNewPass('');
     setNewPass2('');
@@ -326,10 +324,40 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
         </button>
 
         <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 10, padding: '10px 14px', color: '#94a3b8', fontSize: '0.82rem', lineHeight: 1.6 }}>
-          💡 Parola değiştirildikten sonra mevcut oturumunuz devam eder. Diğer cihazlarda tekrar giriş yapmanız gerekecektir.
+          💡 Varsayılan şifre: <strong style={{ color: '#f59e0b', fontFamily: 'monospace' }}>{DEFAULT_PASSWORD}</strong>. Değiştirildikten sonra yeni şifre geçerli olur.
+          {getStoredHash() && <span style={{ color: '#10b981', marginLeft: 8 }}>✅ Özel şifre aktif</span>}
         </div>
+        <LoginFailLogView />
       </div>
     </Card>
+  );
+}
+
+function LoginFailLogView() {
+  const [logs, setLogs] = useState(getLoginFailLogs);
+  if (logs.length === 0) {
+    return (
+      <div style={{ color: '#475569', fontSize: '0.82rem', padding: '8px 0' }}>
+        ✅ Başarısız giriş denemesi yok
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ color: '#f87171', fontSize: '0.82rem', fontWeight: 600 }}>🔐 {logs.length} başarısız giriş denemesi</span>
+        <button onClick={() => { clearLoginFailLogs(); setLogs([]); }} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 6, color: '#f87171', padding: '3px 10px', cursor: 'pointer', fontSize: '0.75rem' }}>
+          Temizle
+        </button>
+      </div>
+      <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {logs.slice(0, 20).map((log, i) => (
+          <div key={i} style={{ color: '#64748b', fontSize: '0.75rem', padding: '3px 8px', background: 'rgba(239,68,68,0.04)', borderRadius: 6 }}>
+            {new Date(log.time).toLocaleString('tr-TR')}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -3,15 +3,60 @@ import { useState, useEffect, useRef } from 'react';
 const PASS_KEY = 'sobaYonetim_appPass';
 const SESSION_KEY = 'sobaYonetim_session';
 const REMEMBER_KEY = 'sobaYonetim_remember';
+const FAIL_LOG_KEY = 'sobaYonetim_loginFailLog';
+
+// Varsayılan şifre: "soba2026" — kullanıcı Settings'ten değiştirebilir.
+// Bu hash, hashPass("soba2026") sonucuna karşılık gelir ve kodda gömülüdür.
+// Kullanıcı özel şifre belirlerse localStorage'daki hash öncelik kazanır.
+export const DEFAULT_PASSWORD = 'soba2026';
+// Bu değer runtime'da hesaplanır ve modül kapsamında önbelleğe alınır.
+let _defaultHash: string | null = null;
+async function getDefaultHash(): Promise<string> {
+  if (_defaultHash) return _defaultHash;
+  const enc = new TextEncoder().encode(DEFAULT_PASSWORD + 'solhan_soba_2026');
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  _defaultHash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return _defaultHash;
+}
+
+// Başarısız giriş logları
+export interface LoginFailLog { time: string; ip?: string; }
+export function getLoginFailLogs(): LoginFailLog[] {
+  try { return JSON.parse(localStorage.getItem(FAIL_LOG_KEY) || '[]'); } catch { return []; }
+}
+function addLoginFailLog() {
+  try {
+    const logs = getLoginFailLogs();
+    logs.unshift({ time: new Date().toISOString() });
+    localStorage.setItem(FAIL_LOG_KEY, JSON.stringify(logs.slice(0, 100)));
+  } catch {}
+}
+export function clearLoginFailLogs() {
+  localStorage.removeItem(FAIL_LOG_KEY);
+}
 
 export function getStoredHash(): string | null {
   return localStorage.getItem(PASS_KEY);
+}
+
+// Şifrenin mevcut olup olmadığını kontrol eder (özel veya varsayılan daima mevcut)
+export function hasAnyPassword(): boolean {
+  return true; // Varsayılan şifre her zaman geçerlidir
 }
 
 export async function hashPass(pass: string): Promise<string> {
   const enc = new TextEncoder().encode(pass + 'solhan_soba_2026');
   const buf = await crypto.subtle.digest('SHA-256', enc);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Verilen hash'in geçerli olup olmadığını kontrol eder (localStorage önce, sonra varsayılan) */
+export async function verifyHash(inputHash: string): Promise<boolean> {
+  const stored = getStoredHash();
+  if (stored) return inputHash === stored;
+  // Özel şifre yoksa varsayılan şifreye karşı kontrol et
+  const defHash = await getDefaultHash();
+  return inputHash === defHash;
 }
 
 function isSessionValid(): boolean {
@@ -40,11 +85,7 @@ function setSession(remember: boolean) {
 }
 
 export function useAuth() {
-  const [authed, setAuthed] = useState(() => {
-    const hasPass = !!getStoredHash();
-    if (!hasPass) return false;
-    return isSessionValid();
-  });
+  const [authed, setAuthed] = useState(() => isSessionValid());
 
   const login = (remember = false) => { setSession(remember); setAuthed(true); };
   const logout = () => {
@@ -52,9 +93,8 @@ export function useAuth() {
     localStorage.removeItem(REMEMBER_KEY);
     setAuthed(false);
   };
-  const hasPassword = !!getStoredHash();
 
-  return { authed, login, logout, hasPassword };
+  return { authed, login, logout, hasPassword: true };
 }
 
 function Particle({ index }: { index: number }) {
@@ -85,9 +125,8 @@ function Particle({ index }: { index: number }) {
 }
 
 export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) => void }) {
-  const [mode, setMode] = useState<'login' | 'setup'>(getStoredHash() ? 'login' : 'setup');
+  // Always show login form (no setup mode — default password is baked in)
   const [pass, setPass] = useState('');
-  const [pass2, setPass2] = useState('');
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
@@ -96,6 +135,9 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
   const [success, setSuccess] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [time, setTime] = useState(new Date());
+  const failLogs = getLoginFailLogs();
+  const failCount = failLogs.length;
+  const lastFail = failLogs[0]?.time;
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -104,7 +146,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 500);
-  }, [mode]);
+  }, []);
 
   const doShake = () => {
     setShake(true);
@@ -115,33 +157,21 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
     if (!pass) { setError('Parola gerekli'); doShake(); return; }
     setLoading(true);
     const hashed = await hashPass(pass);
-    const stored = getStoredHash();
-    if (hashed === stored) {
+    const ok = await verifyHash(hashed);
+    if (ok) {
       setSuccess(true);
       setTimeout(() => onLogin(remember), 800);
     } else {
-      setError('Yanlış parola!');
+      addLoginFailLog();
+      setError(`Yanlış parola! (${getLoginFailLogs().length} başarısız deneme)`);
       doShake();
       setPass('');
     }
     setLoading(false);
   };
 
-  const handleSetup = async () => {
-    if (pass.length < 4) { setError('En az 4 karakter gerekli'); doShake(); return; }
-    if (pass !== pass2) { setError('Parolalar eşleşmiyor!'); doShake(); return; }
-    setLoading(true);
-    const hashed = await hashPass(pass);
-    localStorage.setItem(PASS_KEY, hashed);
-    setSuccess(true);
-    setTimeout(() => onLogin(remember), 800);
-    setLoading(false);
-  };
-
   const handleKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      mode === 'login' ? handleLogin() : handleSetup();
-    }
+    if (e.key === 'Enter') handleLogin();
   };
 
   const particles = Array.from({ length: 50 }, (_, i) => <Particle key={i} index={i} />);
@@ -288,7 +318,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
               Solhan
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.82rem', fontWeight: 400 }}>
-              {mode === 'login' ? 'Hesabınıza giriş yapın' : 'Giriş parolası oluşturun'}
+              Hesabınıza giriş yapın
             </p>
           </div>
 
@@ -304,7 +334,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
                 value={pass}
                 onChange={e => { setPass(e.target.value); setError(''); }}
                 onKeyDown={handleKey}
-                placeholder={mode === 'login' ? 'Parola' : 'Yeni parola (min 4 karakter)'}
+                placeholder="Parola"
                 autoComplete="off"
                 style={{
                   width: '100%', padding: '16px 50px 16px 48px',
@@ -329,33 +359,6 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
               </button>
             </div>
 
-            {mode === 'setup' && (
-              <div style={{ position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)',
-                  color: 'rgba(255,255,255,0.25)', fontSize: '1.1rem', pointerEvents: 'none',
-                }}>🔐</div>
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  value={pass2}
-                  onChange={e => { setPass2(e.target.value); setError(''); }}
-                  onKeyDown={handleKey}
-                  placeholder="Parolayı tekrar girin"
-                  autoComplete="off"
-                  style={{
-                    width: '100%', padding: '16px 16px 16px 48px',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${error ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}`,
-                    borderRadius: 16, color: '#f1f5f9', fontSize: '1rem',
-                    boxSizing: 'border-box', outline: 'none',
-                    transition: 'border-color 0.3s',
-                  }}
-                  onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,87,34,0.4)'}
-                  onBlur={e => e.currentTarget.style.borderColor = error ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}
-                />
-              </div>
-            )}
-
             {error && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -364,6 +367,17 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
                 borderRadius: 10, border: '1px solid rgba(239,68,68,0.15)',
               }}>
                 <span>⚠️</span> {error}
+              </div>
+            )}
+
+            {failCount > 0 && !error && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                color: '#f59e0b', fontSize: '0.78rem', fontWeight: 500,
+                padding: '6px 12px', background: 'rgba(245,158,11,0.06)',
+                borderRadius: 10, border: '1px solid rgba(245,158,11,0.15)',
+              }}>
+                <span>🔐</span> {failCount} başarısız giriş denemesi — Son: {lastFail ? new Date(lastFail).toLocaleString('tr-TR') : '-'}
               </div>
             )}
 
@@ -380,7 +394,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
             </label>
 
             <button
-              onClick={mode === 'login' ? handleLogin : handleSetup}
+              onClick={handleLogin}
               disabled={loading}
               style={{
                 width: '100%', padding: '16px 0',
@@ -396,34 +410,31 @@ export default function LoginScreen({ onLogin }: { onLogin: (remember: boolean) 
                 transform: loading ? 'scale(0.98)' : 'scale(1)',
               }}
             >
-              {loading ? '⏳ Kontrol ediliyor...' : mode === 'login' ? '🚀 Giriş Yap' : '✅ Parolayı Kaydet'}
+              {loading ? '⏳ Kontrol ediliyor...' : '🚀 Giriş Yap'}
             </button>
           </div>
 
-          {mode === 'login' && (
-            <div style={{ textAlign: 'center', marginTop: 20 }}>
-              <button
-                onClick={() => {
-                  const answer = prompt('Parolayı sıfırlamak için mevcut localStorage veriniz silinecek.\n"SIFIRLA" yazın:');
-                  if (answer === 'SIFIRLA') {
-                    localStorage.removeItem(PASS_KEY);
-                    sessionStorage.removeItem(SESSION_KEY);
-                    setMode('setup');
-                    setPass('');
-                    setError('');
-                  }
-                }}
-                style={{
-                  background: 'none', border: 'none',
-                  color: 'rgba(255,255,255,0.2)', fontSize: '0.75rem',
-                  cursor: 'pointer', textDecoration: 'underline',
-                  textUnderlineOffset: '3px',
-                }}
-              >
-                Parolayı unuttum
-              </button>
-            </div>
-          )}
+          <div style={{ textAlign: 'center', marginTop: 20 }}>
+            <button
+              onClick={() => {
+                const answer = prompt('Parolayı özel şifrenizi sıfırlamak için "SIFIRLA" yazın.\n(Varsayılan şifre "soba2026" geri devreye girer)');
+                if (answer === 'SIFIRLA') {
+                  localStorage.removeItem(PASS_KEY);
+                  sessionStorage.removeItem(SESSION_KEY);
+                  setPass('');
+                  setError('Özel şifre silindi — varsayılan şifre aktif');
+                }
+              }}
+              style={{
+                background: 'none', border: 'none',
+                color: 'rgba(255,255,255,0.2)', fontSize: '0.75rem',
+                cursor: 'pointer', textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+              }}
+            >
+              Parolayı unuttum
+            </button>
+          </div>
         </div>
 
         <div style={{

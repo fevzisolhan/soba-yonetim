@@ -45,8 +45,8 @@ export default function Partners({ db, save }: Props) {
         return;
       }
       // Benzer isim kontrolü (ortak + cari birlikte)
-      const benzerOrtak = partners.find(p => p.id !== editId && similarityScore(p.name, trimmedName) >= 70);
-      const benzerCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && similarityScore(c.name, trimmedName) >= 70);
+      const benzerOrtak = partners.find(p => p.id !== editId && similarity(p.name, trimmedName) >= 70);
+      const benzerCari = cariList.find((c: {name:string;deleted?:boolean}) => !c.deleted && similarity(c.name, trimmedName) >= 70);
       const benzer = benzerOrtak || benzerCari;
       if (benzer) {
         const devamEt = window.confirm(`⚠️ "${benzer.name}" adında benzer bir kayıt mevcut.\nYine de kaydetmek istiyor musunuz?`);

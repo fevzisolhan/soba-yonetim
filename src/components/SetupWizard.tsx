@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { hashPass } from './LoginScreen';
 import { genId } from '@/lib/utils-tr';
 
 const SETUP_DONE_KEY = 'sobaYonetim_setupDone';
-const PASS_KEY = 'sobaYonetim_appPass';
 
 export function isSetupDone(): boolean {
   return !!localStorage.getItem(SETUP_DONE_KEY);
@@ -61,13 +59,12 @@ export default function SetupWizard({ onComplete }: Props) {
   const [companyName, setCompanyName] = useState('');
   const [city, setCity] = useState('');
   const [kategoriler, setKategoriler] = useState<KategoriDef[]>(DEFAULT_KATEGORILER);
-  const [pass, setPass] = useState('');
-  const [pass2, setPass2] = useState('');
   const [kasalar, setKasalar] = useState<KasaDef[]>(DEFAULT_KASALAR.map(k => ({ ...k })));
   const [urunler, setUrunler] = useState<UrunDef[]>([emptyUrun()]);
   const [ortaklar, setOrtaklar] = useState<OrtakDef[]>([]);
   const [ortakCariAc, setOrtakCariAc] = useState<boolean[]>([]);
 
+  // Güvenlik adımı kaldırıldı — varsayılan şifre "soba2026" kodda gömülüdür
   const STEPS = [
     { title: 'Hoş Geldiniz',      icon: '🔥', desc: 'Kurulum sihirbazı' },
     { title: 'İşletme Bilgileri', icon: '🏪', desc: 'Firma adı ve konum' },
@@ -75,7 +72,6 @@ export default function SetupWizard({ onComplete }: Props) {
     { title: 'Ürün Kategorileri', icon: '🏷️', desc: 'Ürünleri hangi kategorilere ayıracaksınız?' },
     { title: 'Ürün Ekle',         icon: '📦', desc: 'İsteğe bağlı — atlanabilir' },
     { title: 'Ortak Tanımla',     icon: '🤝', desc: 'İsteğe bağlı — atlanabilir' },
-    { title: 'Güvenlik',          icon: '🔒', desc: 'Giriş parolası' },
   ];
 
   const setErr = (msg: string) => { setError(msg); setTimeout(() => setError(''), 3500); };
@@ -91,7 +87,6 @@ export default function SetupWizard({ onComplete }: Props) {
       if (!kategoriler.some(k => k.enabled)) { setErr('En az bir kategori seçin!'); return false; }
     }
     if (step === 4) {
-      // Ürünler isteğe bağlı ama eklendiyse zorunlu alan kontrolü
       for (const u of urunler) {
         if (u.name && (!u.price || !u.cost)) { setErr(`"${u.name}" için alış ve satış fiyatı girin!`); return false; }
       }
@@ -100,10 +95,6 @@ export default function SetupWizard({ onComplete }: Props) {
       for (let i = 0; i < ortaklar.length; i++) {
         if (!ortaklar[i].name.trim()) { setErr(`${i + 1}. ortak için ad gerekli!`); return false; }
       }
-    }
-    if (step === 6) {
-      if (pass.length < 4) { setErr('Parola en az 4 karakter olmalı!'); return false; }
-      if (pass !== pass2) { setErr('Parolalar eşleşmiyor!'); return false; }
     }
     return true;
   };
@@ -115,9 +106,6 @@ export default function SetupWizard({ onComplete }: Props) {
     if (!validate()) return;
     setLoading(true);
     try {
-      const hashed = await hashPass(pass);
-      localStorage.setItem(PASS_KEY, hashed);
-
       const now = new Date().toISOString();
       const kasaList = kasalar.filter(k => k.enabled).map(k => ({ id: genId(), name: k.name, icon: k.icon }));
 
@@ -186,7 +174,6 @@ export default function SetupWizard({ onComplete }: Props) {
           {step === 3 && <StepKategoriler kategoriler={kategoriler} setKategoriler={setKategoriler} />}
           {step === 4 && <StepUrunler urunler={urunler} setUrunler={setUrunler} kategoriler={kategoriler.filter(k => k.enabled)} />}
           {step === 5 && <StepOrtaklar ortaklar={ortaklar} setOrtaklar={setOrtaklar} ortakCariAc={ortakCariAc} setOrtakCariAc={setOrtakCariAc} />}
-          {step === 6 && <StepPassword pass={pass} setPass={setPass} pass2={pass2} setPass2={setPass2} />}
         </div>
 
         {/* Hata */}
@@ -205,8 +192,8 @@ export default function SetupWizard({ onComplete }: Props) {
           )}
           {/* Atla butonu (ürün ve ortak adımları) */}
           {(step === 4 || step === 5) && (
-            <button onClick={() => setStep(s => s + 1)} style={{ padding: '12px 18px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, background: 'transparent', color: '#475569', cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
-              Atla →
+            <button onClick={() => step === 5 ? finish() : setStep(s => s + 1)} style={{ padding: '12px 18px', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, background: 'transparent', color: '#475569', cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
+              {step === 5 ? 'Atla & Bitir' : 'Atla →'}
             </button>
           )}
           <button
