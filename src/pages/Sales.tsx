@@ -11,6 +11,7 @@ import type { DB, Sale, SaleItem } from '@/types';
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; }
 
 const paymentTypes = ['nakit', 'kart', 'havale', 'cari'] as const;
+const paymentLabels: Record<string, string> = { nakit: 'Nakit', kart: 'Kart', havale: 'Havale', cari: 'Cari' };
 
 export default function Sales({ db, save }: Props) {
   const { showToast } = useToast();
@@ -26,8 +27,8 @@ export default function Sales({ db, save }: Props) {
   // Yeni satış formu
   const [items, setItems] = useState<SaleItem[]>([]);
   const [customerId, setCustomerId] = useState('');
-  const [payment, setPayment] = useState<'nakit' | 'kart' | 'havale' | 'cari'>('nakit');
-  const [discount, setDiscount] = useState(0);
+  const [payment, setPayment] = useState('nakit');
+  const [discount, setDiscount] = useState('');
   const [discountType, setDiscountType] = useState<'percent' | 'amount'>('percent');
   const [tahsilat, setTahsilat] = useState<string>(''); // Manuel tahsil edilen tutar
 
@@ -51,7 +52,8 @@ export default function Sales({ db, save }: Props) {
   };
 
   const subtotal = items.reduce((s, i) => s + i.total, 0);
-  const discountAmount = discountType === 'percent' ? subtotal * (discount / 100) : discount;
+  const discountNum = parseFloat(discount) || 0;
+  const discountAmount = discountType === 'percent' ? subtotal * (discountNum / 100) : discountNum;
   const total = Math.max(0, subtotal - discountAmount);
   const profit = items.reduce((s, i) => s + i.quantity * (i.unitPrice - i.cost), 0) - discountAmount;
   const tahsilatNum = tahsilat === '' ? total : (parseFloat(tahsilat) || 0);
@@ -72,7 +74,7 @@ export default function Sales({ db, save }: Props) {
       quantity: items.reduce((s, i) => s + i.quantity, 0),
       unitPrice: total / Math.max(1, items.reduce((s, i) => s + i.quantity, 0)),
       cost: items.reduce((s, i) => s + i.cost * i.quantity, 0),
-      discount,
+      discount: discountNum,
       discountAmount,
       subtotal,
       total,
@@ -95,7 +97,7 @@ export default function Sales({ db, save }: Props) {
       const kasaEntries: typeof prev.kasa = [];
       const fiiliTahsilat = tahsilat === '' && payment === 'cari' ? 0 : tahsilatNum;
       if (fiiliTahsilat > 0) {
-        const kasaId = payment === 'kart' ? 'banka' : payment === 'havale' ? 'banka' : 'nakit';
+        const kasaId = payment === 'cari' ? 'nakit' : payment;
         kasaEntries.push({
           id: genId(), type: 'gelir' as const, category: 'satis', amount: fiiliTahsilat,
           kasa: kasaId, description: `Satış: ${sale.productName}`, relatedId: sale.id,
@@ -128,7 +130,7 @@ export default function Sales({ db, save }: Props) {
     setItems([]);
     setCustomerId('');
     setPayment('nakit');
-    setDiscount(0);
+    setDiscount('');
     setTahsilat('');
     setModalOpen(false);
   };
@@ -158,7 +160,7 @@ export default function Sales({ db, save }: Props) {
 
         // Tahsil edilen kısmı iade gideri olarak yaz
         if (tahsilEdilen > 0) {
-          const kasaId = (sale.payment === 'kart' || sale.payment === 'havale') ? 'banka' : 'nakit';
+          const kasaId = sale.payment === 'cari' ? 'nakit' : sale.payment;
           kasa = [...kasa, {
             id: genId(), type: 'gider' as const, category: 'iade', amount: tahsilEdilen, kasa: kasaId,
             description: `İade: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
@@ -183,6 +185,52 @@ export default function Sales({ db, save }: Props) {
     });
   };
 
+  const handleCancel = (id: string) => {
+    showConfirm('Satış İptal', 'Bu satışı iptal etmek istiyor musunuz? Stoklar geri yüklenecek.', () => {
+      const nowIso = new Date().toISOString();
+      save(prev => {
+        const sale = prev.sales.find(s => s.id === id);
+        if (!sale) return prev;
+
+        const products = prev.products.map(p => {
+          const item = sale.items?.find(i => i.productId === p.id);
+          if (!item) return p;
+          return { ...p, stock: p.stock + item.quantity };
+        });
+
+        const sales = prev.sales.map(s => s.id === id ? { ...s, status: 'iptal' as const, updatedAt: nowIso } : s);
+
+        let kasa = prev.kasa;
+        let cari = prev.cari;
+
+        const relatedKasaEntries = prev.kasa.filter(k => !k.deleted && k.relatedId === sale.id && k.type === 'gelir');
+        const tahsilEdilen = relatedKasaEntries.reduce((s, k) => s + k.amount, 0);
+
+        if (tahsilEdilen > 0) {
+          const kasaId = sale.payment === 'cari' ? 'nakit' : sale.payment;
+          kasa = [...kasa, {
+            id: genId(), type: 'gider' as const, category: 'iptal', amount: tahsilEdilen, kasa: kasaId,
+            description: `İptal: ${sale.productName}`, relatedId: sale.id, createdAt: nowIso, updatedAt: nowIso,
+          }];
+        }
+
+        const cariId = sale.cariId || sale.customerId;
+        if (cariId) {
+          const cariyeYazilan = sale.total - tahsilEdilen;
+          if (cariyeYazilan > 0) {
+            cari = cari.map(c => c.id === cariId
+              ? { ...c, balance: (c.balance || 0) - cariyeYazilan, lastTransaction: nowIso, updatedAt: nowIso }
+              : c
+            );
+          }
+        }
+
+        return { ...prev, sales, products, kasa, cari };
+      });
+      showToast('Satış iptal edildi!', 'success');
+    });
+  };
+
   let sales = db.sales.filter(s => !s.deleted);
   if (filter !== 'all') sales = sales.filter(s => s.status === filter);
   if (search) sales = sales.filter(s => s.productName.toLowerCase().includes(search.toLowerCase()));
@@ -191,14 +239,14 @@ export default function Sales({ db, save }: Props) {
   const sorted = [...sales].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const todayStats = useMemo(() => {
-    const today = new Date().toDateString();
-    const t = db.sales.filter(s => s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const t = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && s.createdAt.slice(0, 10) === todayStr);
     return { count: t.length, revenue: t.reduce((s, x) => s + x.total, 0), profit: t.reduce((s, x) => s + x.profit, 0) };
   }, [db.sales]);
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
+      <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
         <StatCard label="Bugün Satış" value={String(todayStats.count)} sub={formatMoney(todayStats.revenue)} color="#10b981" />
         <StatCard label="Bugün Ciro" value={formatMoney(todayStats.revenue)} color="#3b82f6" />
         <StatCard label="Bugün Kâr" value={formatMoney(todayStats.profit)} color="#f59e0b" />
@@ -239,7 +287,7 @@ export default function Sales({ db, save }: Props) {
                 <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{s.quantity}</td>
                 <td style={{ padding: '12px 16px', color: '#10b981', fontWeight: 700 }}>{formatMoney(s.total)}</td>
                 <td style={{ padding: '12px 16px', color: s.profit >= 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>{formatMoney(s.profit)}</td>
-                <td style={{ padding: '12px 16px' }}><span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem' }}>{s.payment}</span></td>
+                <td style={{ padding: '12px 16px' }}><span style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem' }}>{(db.kasalar || []).find(k => k.id === s.payment)?.name || paymentLabels[s.payment] || s.payment}</span></td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{ background: s.status === 'tamamlandi' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: s.status === 'tamamlandi' ? '#10b981' : '#ef4444', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem', fontWeight: 600 }}>
                     {s.status === 'tamamlandi' ? '✓ Tamamlandı' : s.status === 'iade' ? '↩ İade' : '✕ İptal'}
@@ -247,7 +295,10 @@ export default function Sales({ db, save }: Props) {
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   {s.status === 'tamamlandi' && (
-                    <button onClick={() => handleReturn(s.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 6, color: '#ef4444', padding: '4px 10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>↩ İade</button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => handleReturn(s.id)} style={{ background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 6, color: '#ef4444', padding: '4px 10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>↩ İade</button>
+                      <button onClick={() => handleCancel(s.id)} style={{ background: 'rgba(245,158,11,0.1)', border: 'none', borderRadius: 6, color: '#f59e0b', padding: '4px 10px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>✕ İptal</button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -304,11 +355,10 @@ export default function Sales({ db, save }: Props) {
 
             <label style={{ ...lbl, marginTop: 12 }}>Ödeme Şekli</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {paymentTypes.map((pt, i) => (
-                <button key={pt} tabIndex={3 + i} onClick={() => setPayment(pt)}
-                  onKeyDown={e => { if (e.key === 'ArrowRight') { e.preventDefault(); const next = paymentTypes[(paymentTypes.indexOf(payment) + 1) % paymentTypes.length]; setPayment(next); } if (e.key === 'ArrowLeft') { e.preventDefault(); const prev = paymentTypes[(paymentTypes.indexOf(payment) - 1 + paymentTypes.length) % paymentTypes.length]; setPayment(prev); } }}
-                  style={{ flex: 1, padding: '8px 6px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: payment === pt ? '#ff5722' : '#273548', color: payment === pt ? '#fff' : '#94a3b8' }}>
-                  {pt}
+              {[...(db.kasalar || [{ id: 'nakit', name: 'Nakit', icon: '💵' }, { id: 'banka', name: 'Banka', icon: '🏦' }]), { id: 'cari', name: 'Cari', icon: '👤' }].map((k, i) => (
+                <button key={k.id} tabIndex={3 + i} onClick={() => setPayment(k.id)}
+                  style={{ flex: 1, padding: '8px 6px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem', background: payment === k.id ? '#ff5722' : '#273548', color: payment === k.id ? '#fff' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                  {k.icon} {k.name}
                 </button>
               ))}
             </div>
@@ -316,8 +366,8 @@ export default function Sales({ db, save }: Props) {
             <label style={{ ...lbl, marginTop: 12 }}>İskonto</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input tabIndex={7} type="number" value={discount} min={0}
-                onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
-                onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); setDiscount(d => d + 1); } if (e.key === 'ArrowDown') { e.preventDefault(); setDiscount(d => Math.max(0, d - 1)); } }}
+                onChange={e => setDiscount(e.target.value)}
+                onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); setDiscount(d => String((parseFloat(d) || 0) + 1)); } if (e.key === 'ArrowDown') { e.preventDefault(); setDiscount(d => String(Math.max(0, (parseFloat(d) || 0) - 1))); } }}
                 style={{ flex: 1, background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '8px 10px' }} />
               <select tabIndex={8} value={discountType} onChange={e => setDiscountType(e.target.value as 'percent' | 'amount')} style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, color: '#f1f5f9', padding: '8px 10px' }}>
                 <option value="percent">%</option>

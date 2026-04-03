@@ -169,13 +169,14 @@ export default function Dashboard({ db, onTabChange }: Props) {
   };
 
   const stats = useMemo(() => {
-    const today = new Date().toDateString();
-    const todaySales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === today);
+    const todayStr = new Date().toLocaleDateString('sv-SE');
+    const todaySales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && s.createdAt.slice(0, 10) === todayStr);
     const todayRevenue = todaySales.reduce((s, sale) => s + sale.total, 0);
     const todayProfit = todaySales.reduce((s, sale) => s + sale.profit, 0);
 
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yestSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).toDateString() === yesterday.toDateString());
+    const yestStr = yesterday.toLocaleDateString('sv-SE');
+    const yestSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi' && s.createdAt.slice(0, 10) === yestStr);
     const yestRevenue = yestSales.reduce((s, sale) => s + sale.total, 0);
     const revTrend = yestRevenue > 0 ? ((todayRevenue - yestRevenue) / yestRevenue) * 100 : 0;
 
