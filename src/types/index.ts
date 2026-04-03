@@ -352,6 +352,27 @@ export interface OrtakEmanet {
   updatedAt?: string;
 }
 
+// ─── Veri Bütünlüğü ──────────────────────────────────────────────────────────
+export interface IntegrityIssue {
+  id: string;
+  severity: 'critical' | 'warning' | 'info';
+  category: 'stok' | 'kasa' | 'cari' | 'fatura' | 'taksit' | 'referans';
+  message: string;
+  detail?: string;
+  recordId?: string;
+  detectedAt: string;
+}
+
+// ─── Hata Logu ───────────────────────────────────────────────────────────────
+export interface ErrorLog {
+  id: string;
+  message: string;
+  stack?: string;
+  componentStack?: string;
+  time: string;
+  url?: string;
+}
+
 // ─── Şirket ──────────────────────────────────────────────────────────────────
 export interface Company {
   id: string;

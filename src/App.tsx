@@ -24,6 +24,9 @@ import Butce from '@/pages/Butce';
 import KontrolHalkasi from '@/pages/KontrolHalkasi';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import SistemSagligi from '@/pages/SistemSagligi';
+import { useIntegrityCheck } from '@/hooks/useIntegrityCheck';
 
 function useOnlineStatus() {
   return useSyncExternalStore(
@@ -53,6 +56,7 @@ const TABS = [
   { id: 'kontrol', label: 'Kontrol', icon: '⚡', group: 'Analiz' },
   { id: 'entegrasyon', label: 'Entegrasyon', icon: '🔗', group: 'Sistem' },
   { id: 'partners', label: 'Ortaklar', icon: '🤝', group: 'Sistem' },
+  { id: 'saglık', label: 'Sağlık', icon: '🏥', group: 'Sistem' },
   { id: 'settings', label: 'Ayarlar', icon: '⚙️', group: 'Sistem' },
 ] as const;
 
@@ -374,6 +378,8 @@ function AppContent() {
   const isOnline = useOnlineStatus();
   const prevOnline = useRef(isOnline);
   const { showToast } = useToast();
+  const { counts: integrityCounts } = useIntegrityCheck(db);
+  const startupChecked = useRef(false);
 
   // İlk kurulum verisini DB'ye yaz (bir kez)
   useEffect(() => {
@@ -409,6 +415,22 @@ function AppContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Uygulama açılışında bütünlük denetimi bildirimi (bir kez)
+  useEffect(() => {
+    if (startupChecked.current) return;
+    startupChecked.current = true;
+    // Kısa gecikme: DB yüklendikten sonra kontrol et
+    const timer = setTimeout(() => {
+      if (integrityCounts.critical > 0) {
+        showToast(`🔴 ${integrityCounts.critical} kritik veri bütünlüğü sorunu tespit edildi!`, 'error' as any);
+      } else if (integrityCounts.warning > 0) {
+        showToast(`🟡 ${integrityCounts.warning} veri uyarısı var — Sistem Sağlığı sayfasını kontrol edin`, 'warning' as any);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [integrityCounts.critical, integrityCounts.warning]);
+
   useEffect(() => {
     if (prevOnline.current !== isOnline) {
       if (isOnline) {
@@ -438,7 +460,8 @@ function AppContent() {
       if (r.type === 'stok_min' && db.products.some(p => !p.deleted && p.stock > 0 && p.stock <= p.minStock)) return c + 1;
       return c;
     }, 0),
-  }), [db]);
+    saglık: integrityCounts.critical + integrityCounts.warning,
+  }), [db, integrityCounts]);
 
   const totalKasa = useMemo(() => db.kasa.filter(k => !k.deleted).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
   const nakit = useMemo(() => db.kasa.filter(k => !k.deleted && k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
@@ -560,6 +583,7 @@ function AppContent() {
           {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'partners' && <Partners db={db} save={save} />}
+          {activeTab === 'saglık' && <SistemSagligi db={db} />}
           {activeTab === 'settings' && <Settings db={db} save={save} exportJSON={exportJSON} importJSON={importJSON} />}
         </main>
       </div>
@@ -627,8 +651,9 @@ export default function App() {
   }
 
   return (
-    <ConfirmProvider>
-      <AppContent />
+    <ErrorBoundary>
+      <ConfirmProvider>
+        <AppContent />
       <Toaster
         richColors
         position="bottom-right"
@@ -655,7 +680,8 @@ export default function App() {
           },
         }}
       />
-    </ConfirmProvider>
+      </ConfirmProvider>
+    </ErrorBoundary>
   );
 }
 
