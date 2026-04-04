@@ -27,6 +27,7 @@ import BoruTed from '@/pages/BoruTed';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
+import NotificationCenter from '@/components/NotificationCenter';
 
 function useOnlineStatus() {
   return useSyncExternalStore(
@@ -757,6 +758,8 @@ function AppContent() {
                 ))}
               </div>
             )}
+            {/* Akıllı Bildirim Merkezi */}
+            <NotificationCenter db={db} onNavigate={navigate} />
             {/* Uyarı bildirimleri */}
             {badges.monitor > 0 && (
               <button
