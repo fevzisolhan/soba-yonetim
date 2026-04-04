@@ -3,7 +3,24 @@ import { hashPass } from './LoginScreen';
 import { genId } from '@/lib/utils-tr';
 
 const SETUP_DONE_KEY = 'sobaYonetim_setupDone';
-const PASS_KEY = 'sobaYonetim_appPass';
+
+// Firebase auth URL (setup sırasında parolayı Firebase'e yaz)
+const FIREBASE_PROJECT = 'pars-4850c';
+const FIREBASE_API_KEY = 'AIzaSyBL2_YIVMPBwojAfK7pzd2Eg5AG1sUyfig';
+const FIREBASE_AUTH_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/auth?key=${FIREBASE_API_KEY}`;
+
+async function savePassToFirebase(hash: string): Promise<void> {
+  try {
+    await fetch(FIREBASE_AUTH_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { hash: { stringValue: hash }, updatedAt: { stringValue: new Date().toISOString() } } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    // Oturum cache'ine de yaz
+    try { sessionStorage.setItem('sobaYonetim_hc', hash); } catch { /* ignore */ }
+  } catch { /* Firebase hata — giriş ekranı tekrar yükleyecek */ }
+}
 
 export function isSetupDone(): boolean {
   return !!localStorage.getItem(SETUP_DONE_KEY);
@@ -116,7 +133,7 @@ export default function SetupWizard({ onComplete }: Props) {
     setLoading(true);
     try {
       const hashed = await hashPass(pass);
-      localStorage.setItem(PASS_KEY, hashed);
+      await savePassToFirebase(hashed);
 
       const now = new Date().toISOString();
       const kasaList = kasalar.filter(k => k.enabled).map(k => ({ id: genId(), name: k.name, icon: k.icon }));

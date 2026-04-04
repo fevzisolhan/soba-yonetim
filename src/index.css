@@ -9,10 +9,11 @@ html {
 }
 
 body {
-  background: #0f172a;
+  background: #070e1c;
   color: #f1f5f9;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
@@ -23,4 +24,114 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* ── Seçim rengi ── */
+::selection {
+  background: rgba(255, 87, 34, 0.25);
+  color: #fff;
+}
+
+/* ── Sayfa geçiş animasyonları ── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.page-enter {
+  animation: pageEnter 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Genel utility animasyonlar ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Glow efektleri ── */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(255, 87, 34, 0.2); }
+  50%       { box-shadow: 0 0 28px rgba(255, 87, 34, 0.45); }
+}
+
+@keyframes greenGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
+  50%       { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); }
+}
+
+@keyframes onlinePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.7); }
+}
+
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+  50%       { box-shadow: 0 0 16px rgba(239, 68, 68, 0.75); }
+}
+
+/* ── Kenarlık parlaması (kartlar) ── */
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(255, 255, 255, 0.06); }
+  50%       { border-color: rgba(255, 87, 34, 0.2); }
+}
+
+/* ── Sayı sayaç animasyonu ── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Scrollbar global ── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.07); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.14); }
+
+/* ── Input focus halkası ── */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(255, 87, 34, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1) !important;
+  outline: none !important;
+}
+
+/* ── Buton basma efekti ── */
+button:active:not(:disabled) {
+  transform: scale(0.97) !important;
+}
+
+/* ── Tablo satırı hover ── */
+tr:hover td {
+  background: rgba(255, 255, 255, 0.018) !important;
+  transition: background 0.12s;
+}
+
+/* ── Print ── */
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  aside, header, [data-sonner-toaster] { display: none !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }

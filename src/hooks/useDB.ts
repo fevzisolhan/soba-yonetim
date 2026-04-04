@@ -1,11 +1,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { DB, Kasa, ProductCategory } from '@/types';
 import { genId } from '@/lib/utils-tr';
+import { logger } from '@/lib/logger';
 
 // Firebase config
 const FIREBASE_PROJECT = 'pars-4850c';
 const FIREBASE_API_KEY = 'AIzaSyBL2_YIVMPBwojAfK7pzd2Eg5AG1sUyfig';
 const FIREBASE_DOC_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/sync/main?key=${FIREBASE_API_KEY}`;
+
+// ── Sync durum yayıncısı ────────────────────────────────────────────────────
+export type SyncStatus = 'idle' | 'saving' | 'saved' | 'error' | 'loading';
+type SyncListener = (status: SyncStatus, detail?: string) => void;
+const _syncListeners: SyncListener[] = [];
+let _currentSyncStatus: SyncStatus = 'idle';
+
+function emitSync(status: SyncStatus, detail?: string) {
+  _currentSyncStatus = status;
+  _syncListeners.forEach(fn => { try { fn(status, detail); } catch { /* ignore */ } });
+}
+
+export function onSyncStatus(fn: SyncListener): () => void {
+  _syncListeners.push(fn);
+  return () => { const i = _syncListeners.indexOf(fn); if (i >= 0) _syncListeners.splice(i, 1); };
+}
+export function getSyncStatus() { return _currentSyncStatus; }
 
 const STORAGE_KEY = 'sobaYonetim';
 
@@ -131,8 +149,32 @@ function saveToStorage(db: DB): boolean {
   }
 }
 
-// Firebase REST API - veriyi Firestore'a kaydet
+// ── Firebase REST API ───────────────────────────────────────────────────────
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [2000, 4000, 8000]; // üstel geri çekilme
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        const delay = RETRY_DELAYS[attempt] ?? 8000;
+        logger.warn('firebase', `Bağlantı denemesi ${attempt + 1}/${retries + 1} başarısız — ${delay}ms bekleyip tekrar denenecek`, { error: String(e) });
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function saveToFirebase(db: DB): Promise<void> {
+  const t = logger.time('firebase', `Firebase kayıt v${db._version}`);
+  emitSync('saving');
   try {
     const payload = {
       fields: {
@@ -141,26 +183,42 @@ async function saveToFirebase(db: DB): Promise<void> {
         updatedAt: { stringValue: new Date().toISOString() },
       }
     };
-    await fetch(FIREBASE_DOC_URL, {
+    const res = await fetchWithRetry(FIREBASE_DOC_URL, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-  } catch {
-    // Sessizce hata yut, localStorage zaten kaydetti
+    const ms = t.end({ version: db._version, ok: res.ok });
+    if (res.ok) {
+      emitSync('saved', `v${db._version} · ${ms}ms`);
+      logger.info('sync', `Firebase\'e kaydedildi`, { version: db._version, ms });
+    } else {
+      const body = await res.text().catch(() => '');
+      emitSync('error', `HTTP ${res.status}`);
+      logger.error('firebase', `Firebase kayıt hatası HTTP ${res.status}`, { body: body.slice(0, 200) });
+    }
+  } catch (e) {
+    t.end({ error: String(e) });
+    emitSync('error', 'Bağlantı hatası');
+    logger.error('firebase', 'Firebase kayıt tamamen başarısız', { error: String(e) });
   }
 }
 
-// Firebase REST API - veriyi Firestore'dan oku
 async function loadFromFirebase(): Promise<DB | null> {
+  const t = logger.time('firebase', 'Firebase yükle');
   try {
-    const res = await fetch(FIREBASE_DOC_URL);
-    if (!res.ok) return null;
+    const res = await fetchWithRetry(FIREBASE_DOC_URL, { method: 'GET' });
+    if (!res.ok) { t.end({ status: res.status }); return null; }
     const json = await res.json();
     const raw = json?.fields?.data?.stringValue;
-    if (!raw) return null;
-    return JSON.parse(raw) as DB;
-  } catch {
+    if (!raw) { t.end({ empty: true }); return null; }
+    const data = JSON.parse(raw) as DB;
+    const ms = t.end({ version: data._version });
+    logger.info('firebase', 'Firebase\'den yüklendi', { version: data._version, ms });
+    return data;
+  } catch (e) {
+    t.end({ error: String(e) });
+    logger.warn('firebase', 'Firebase yükleme başarısız (çevrimdışı?)', { error: String(e) });
     return null;
   }
 }
@@ -171,28 +229,44 @@ export function useDB() {
 
   // Uygulama açılınca Firebase'den en güncel veriyi çek
   useEffect(() => {
+    emitSync('loading');
+    logger.info('db', 'Uygulama DB yükleniyor', { localVersion: db._version });
     loadFromFirebase().then(cloudDb => {
-      if (!cloudDb) return;
+      if (!cloudDb) {
+        emitSync('idle');
+        logger.info('db', 'Firebase boş, yerel veri kullanılıyor');
+        return;
+      }
       const localDb = loadFromStorage();
-      // Hangisi daha yeni ise onu kullan
       if ((cloudDb._version || 0) > (localDb._version || 0)) {
+        logger.info('db', 'Bulut verisi daha güncel — güncelleniyor', {
+          local: localDb._version, cloud: cloudDb._version
+        });
         saveToStorage(cloudDb);
         setDb(cloudDb);
+      } else {
+        logger.info('db', 'Yerel veri güncel', { version: localDb._version });
       }
+      emitSync('idle');
     });
     // Cleanup: unmount'ta pending Firebase sync'i iptal et
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const save = useCallback((updater: (prev: DB) => DB) => {
     setDb(prev => {
+      const t = logger.time('db', 'save()');
       const next = updater(prev);
+      // Sync timestamp ekle
+      (next as DB & { _lastSyncAt?: string })._lastSyncAt = new Date().toISOString();
       saveToStorage(next);
-      // Debounce: 1 saniye bekle sonra Firebase'e gönder
+      t.end({ version: next._version });
+      // Debounce: 1.2 saniye bekle sonra Firebase'e gönder
       if (syncTimer.current) clearTimeout(syncTimer.current);
       syncTimer.current = setTimeout(() => {
         saveToFirebase(next);
-      }, 1000);
+      }, 1200);
       return next;
     });
   }, []);
@@ -267,5 +341,5 @@ export function useDB() {
     return db.kasa.filter(k => !k.deleted).reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
   }, [db.kasa]);
 
-  return { db, save, saveWithLog, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa };
+  return { db, save, saveWithLog, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa, emitSync };
 }

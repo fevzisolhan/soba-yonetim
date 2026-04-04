@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect, useSyncExternalStore } from 'react';
-import { useDB } from '@/hooks/useDB';
+import { useDB, onSyncStatus, type SyncStatus } from '@/hooks/useDB';
 import { useToast } from '@/components/Toast';
 import { ConfirmProvider } from '@/components/ConfirmDialog';
 import { Toaster } from 'sonner';
@@ -366,15 +366,36 @@ function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; d
   );
 }
 
+// Grup renkleri
+const GROUP_COLORS: Record<string, { text: string; bg: string; glow: string }> = {
+  Ana:     { text: '#ff7043', bg: 'rgba(255,87,34,0.12)',  glow: 'rgba(255,87,34,0.35)' },
+  Tedarik: { text: '#34d399', bg: 'rgba(52,211,153,0.12)', glow: 'rgba(52,211,153,0.3)' },
+  Finans:  { text: '#60a5fa', bg: 'rgba(96,165,250,0.12)', glow: 'rgba(96,165,250,0.3)' },
+  Analiz:  { text: '#a78bfa', bg: 'rgba(167,139,250,0.12)', glow: 'rgba(167,139,250,0.3)' },
+  Sistem:  { text: '#94a3b8', bg: 'rgba(148,163,184,0.08)', glow: 'rgba(148,163,184,0.2)' },
+};
+
 function AppContent() {
   const { db, save, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const isOnline = useOnlineStatus();
   const prevOnline = useRef(isOnline);
   const { showToast } = useToast();
+
+  // Sync durum izleme
+  useEffect(() => {
+    const unsub = onSyncStatus((status, detail) => {
+      setSyncStatus(status);
+      if (status === 'saved') setLastSyncTime(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }));
+      if (status === 'error' && detail) console.warn('[sync]', detail);
+    });
+    return unsub;
+  }, []);
 
   // İlk kurulum verisini DB'ye yaz (bir kez)
   useEffect(() => {
@@ -462,90 +483,348 @@ function AppContent() {
       {/* Mobile overlay */}
       {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 99, backdropFilter: 'blur(4px)' }} />}
       {/* SIDEBAR */}
-      <aside style={{ width: 228, minHeight: '100vh', background: 'linear-gradient(180deg, #06101f 0%, #080f1e 100%)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', position: 'fixed', left: isMobile && !sidebarOpen ? -240 : 0, top: 0, bottom: 0, zIndex: 100, transition: 'left 0.25s ease' }}>
-        <div style={{ padding: '18px 16px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-            <div style={{ width: 38, height: 38, background: 'linear-gradient(135deg, #ff5722, #ff8c42)', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: '0 4px 16px rgba(255,87,34,0.35)', flexShrink: 0 }}>🔥</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.92rem', letterSpacing: '-0.01em' }}>Soba Yönetim</div>
-              <div style={{ color: '#1e3a5f', fontSize: '0.65rem', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sistemi v2.0</div>
+      <aside style={{
+        width: 236, minHeight: '100vh',
+        background: 'linear-gradient(180deg, #05101f 0%, #070d1c 60%, #060b18 100%)',
+        borderRight: '1px solid rgba(255,255,255,0.05)',
+        display: 'flex', flexDirection: 'column',
+        position: 'fixed', left: isMobile && !sidebarOpen ? -248 : 0,
+        top: 0, bottom: 0, zIndex: 100,
+        transition: 'left 0.28s cubic-bezier(0.22,1,0.36,1)',
+        boxShadow: '4px 0 30px rgba(0,0,0,0.3)',
+      }}>
+        {/* Logo */}
+        <div style={{ padding: '16px 14px 13px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 40, height: 40, flexShrink: 0,
+              background: 'linear-gradient(135deg, #ff5722, #ff8c42)',
+              borderRadius: 12,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.15rem',
+              boxShadow: '0 4px 20px rgba(255,87,34,0.45), 0 0 0 6px rgba(255,87,34,0.06)',
+              animation: 'sidebarLogoPulse 4s ease-in-out infinite',
+            }}>🔥</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.94rem', letterSpacing: '-0.015em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Soba Yönetim</div>
+              <div style={{ color: '#1e3a5f', fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 1 }}>Sistemi · v2.0</div>
             </div>
-            {isMobile && <button onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', color: '#475569', fontSize: '1.4rem', cursor: 'pointer', padding: '4px 8px' }}>✕</button>}
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(false)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 8, color: '#475569', cursor: 'pointer', padding: '6px 8px', fontSize: '1rem', transition: 'all 0.15s', flexShrink: 0 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; }}>✕</button>
+            )}
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '10px 8px', overflowY: 'auto' }}>
-          {groups.map(group => (
-            <div key={group} style={{ marginBottom: 4 }}>
-              <div style={{ padding: '7px 10px 3px', color: '#1e3a5f', fontSize: '0.62rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{group}</div>
-              {TABS.filter(t => t.group === group).map(tab => {
-                const badge = badges[tab.id as keyof typeof badges];
-                const isActive = activeTab === tab.id;
-                return (
-                  <button key={tab.id} onClick={() => navigate(tab.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 11px', border: 'none', borderRadius: 9, cursor: 'pointer', marginBottom: 1, background: isActive ? 'rgba(255,87,34,0.15)' : 'transparent', color: isActive ? '#ff7043' : '#475569', fontWeight: isActive ? 700 : 400, fontSize: '0.85rem', transition: 'all 0.15s', borderLeft: isActive ? '2px solid #ff5722' : '2px solid transparent', outline: 'none' }}
-                    onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; } }}
-                    onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; } }}>
-                    <span style={{ width: 18, textAlign: 'center', fontSize: '0.9rem', flexShrink: 0, opacity: isActive ? 1 : 0.7 }}>{tab.icon}</span>
-                    <span style={{ flex: 1 }}>{tab.label}</span>
-                    {badge ? <span style={{ background: tab.id === 'products' || tab.id === 'monitor' ? '#ef4444' : '#f59e0b', color: '#fff', borderRadius: '10px', minWidth: 18, height: 17, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 800, padding: '0 4px' }}>{badge > 99 ? '99+' : badge}</span> : null}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+        {/* NAV */}
+        <nav style={{ flex: 1, padding: '8px 7px', overflowY: 'auto', overflowX: 'hidden' }}>
+          {groups.map(group => {
+            const gc = GROUP_COLORS[group] || GROUP_COLORS['Sistem'];
+            return (
+              <div key={group} style={{ marginBottom: 6 }}>
+                <div style={{
+                  padding: '8px 10px 4px',
+                  color: gc.text,
+                  fontSize: '0.6rem', fontWeight: 800,
+                  textTransform: 'uppercase', letterSpacing: '0.12em',
+                  opacity: 0.7,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${gc.text}30, transparent)` }} />
+                  {group}
+                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${gc.text}30)` }} />
+                </div>
+                {TABS.filter(t => t.group === group).map(tab => {
+                  const badge = badges[tab.id as keyof typeof badges];
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => navigate(tab.id)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+                        padding: '9px 10px', border: 'none', borderRadius: 10,
+                        cursor: 'pointer', marginBottom: 1,
+                        background: isActive ? gc.bg : 'transparent',
+                        color: isActive ? gc.text : '#3d5166',
+                        fontWeight: isActive ? 700 : 400,
+                        fontSize: '0.845rem',
+                        transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
+                        borderLeft: isActive ? `2.5px solid ${gc.text}` : '2.5px solid transparent',
+                        outline: 'none', textAlign: 'left',
+                        boxShadow: isActive ? `inset 0 0 0 1px ${gc.text}18, 0 2px 12px ${gc.glow}` : 'none',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
+                      onMouseEnter={e => {
+                        if (!isActive) {
+                          const el = e.currentTarget as HTMLButtonElement;
+                          el.style.background = 'rgba(255,255,255,0.03)';
+                          el.style.color = '#94a3b8';
+                          el.style.borderLeft = `2.5px solid rgba(255,255,255,0.06)`;
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!isActive) {
+                          const el = e.currentTarget as HTMLButtonElement;
+                          el.style.background = 'transparent';
+                          el.style.color = '#3d5166';
+                          el.style.borderLeft = '2.5px solid transparent';
+                        }
+                      }}
+                    >
+                      {/* İkon arka planı */}
+                      <span style={{
+                        width: 26, height: 26, flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 7, fontSize: '0.88rem',
+                        background: isActive ? gc.bg : 'transparent',
+                        transition: 'all 0.18s',
+                        filter: isActive ? 'none' : 'grayscale(40%)',
+                      }}>{tab.icon}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                      {badge ? (
+                        <span style={{
+                          background: (tab.id === 'products' || tab.id === 'monitor') ? 'linear-gradient(135deg, #dc2626, #ef4444)' : 'linear-gradient(135deg, #d97706, #f59e0b)',
+                          color: '#fff', borderRadius: 20,
+                          minWidth: 19, height: 17, padding: '0 4px',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.62rem', fontWeight: 900, letterSpacing: '-0.01em',
+                          boxShadow: (tab.id === 'products' || tab.id === 'monitor')
+                            ? '0 0 8px rgba(239,68,68,0.5)' : '0 0 8px rgba(245,158,11,0.4)',
+                          animation: 'badgePulse 2.5s ease-in-out infinite',
+                          flexShrink: 0,
+                        }}>{badge > 99 ? '99+' : badge}</span>
+                      ) : null}
+                      {/* Aktif gösterge çizgisi */}
+                      {isActive && (
+                        <span style={{
+                          position: 'absolute', right: 0, top: '20%', bottom: '20%',
+                          width: 2, borderRadius: 2,
+                          background: `linear-gradient(180deg, transparent, ${gc.text}, transparent)`,
+                        }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Kasa Widget */}
-        <div onClick={() => navigate('kasa')} style={{ margin: '0 8px 8px', background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.03))', border: '1px solid rgba(16,185,129,0.15)', borderRadius: 12, padding: '11px 13px', cursor: 'pointer', transition: 'all 0.2s' }}
-          onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.06))'}
-          onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(16,185,129,0.03))'}>
-          <div style={{ color: '#1e4d3f', fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>💰 Toplam Kasa</div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 900, color: totalKasa >= 0 ? '#10b981' : '#ef4444', letterSpacing: '-0.02em' }}>{formatMoney(totalKasa)}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-            <div style={{ flex: 1 }}><div style={{ color: '#1e3a5f', fontSize: '0.62rem' }}>Nakit</div><div style={{ color: '#6ee7b7', fontSize: '0.78rem', fontWeight: 700 }}>{formatMoney(nakit)}</div></div>
-            <div style={{ flex: 1 }}><div style={{ color: '#1e3a5f', fontSize: '0.62rem' }}>Banka</div><div style={{ color: '#6ee7b7', fontSize: '0.78rem', fontWeight: 700 }}>{formatMoney(totalKasa - nakit)}</div></div>
+        <div
+          onClick={() => navigate('kasa')}
+          style={{
+            margin: '0 7px 7px', cursor: 'pointer',
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.09) 0%, rgba(16,185,129,0.02) 100%)',
+            border: '1px solid rgba(16,185,129,0.13)',
+            borderRadius: 12, padding: '10px 12px',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = 'linear-gradient(135deg, rgba(16,185,129,0.16), rgba(16,185,129,0.05))';
+            el.style.boxShadow = '0 4px 20px rgba(16,185,129,0.15)';
+            el.style.borderColor = 'rgba(16,185,129,0.25)';
+          }}
+          onMouseLeave={e => {
+            const el = e.currentTarget as HTMLDivElement;
+            el.style.background = 'linear-gradient(135deg, rgba(16,185,129,0.09), rgba(16,185,129,0.02))';
+            el.style.boxShadow = 'none';
+            el.style.borderColor = 'rgba(16,185,129,0.13)';
+          }}
+        >
+          <div style={{ color: '#065f46', fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span>💰</span>
+            <span>Toplam Kasa</span>
+            <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', display: 'inline-block' }} />
+          </div>
+          <div style={{ fontSize: '1.18rem', fontWeight: 900, color: totalKasa >= 0 ? '#10b981' : '#ef4444', letterSpacing: '-0.025em', lineHeight: 1 }}>
+            {formatMoney(totalKasa)}
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 7 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#064e3b', fontSize: '0.59rem', marginBottom: 2 }}>Nakit</div>
+              <div style={{ color: '#6ee7b7', fontSize: '0.78rem', fontWeight: 700 }}>{formatMoney(nakit)}</div>
+            </div>
+            <div style={{ width: 1, background: 'rgba(16,185,129,0.12)' }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#064e3b', fontSize: '0.59rem', marginBottom: 2 }}>Banka</div>
+              <div style={{ color: '#6ee7b7', fontSize: '0.78rem', fontWeight: 700 }}>{formatMoney(totalKasa - nakit)}</div>
+            </div>
           </div>
         </div>
 
-        <div style={{ padding: '8px 16px 12px', borderTop: '1px solid rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: isOnline ? '#10b981' : '#f59e0b', display: 'inline-block', boxShadow: isOnline ? '0 0 6px #10b981' : '0 0 6px #f59e0b' }} />
-            <span style={{ color: isOnline ? '#10b981' : '#f59e0b', fontSize: '0.64rem', fontWeight: 700 }}>{isOnline ? 'Çevrimiçi' : 'Çevrimdışı'}</span>
+        {/* Alt durum çubuğu */}
+        <div style={{ padding: '8px 12px 12px', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+          {/* Online/offline + sync durumu */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+              background: isOnline ? '#10b981' : '#f59e0b',
+              display: 'inline-block',
+              boxShadow: isOnline ? '0 0 8px #10b981' : '0 0 8px #f59e0b',
+              animation: isOnline ? 'onlinePulse 3s ease-in-out infinite' : 'none',
+            }} />
+            <span style={{ color: isOnline ? '#10b981' : '#f59e0b', fontSize: '0.64rem', fontWeight: 700, flex: 1 }}>
+              {isOnline ? 'Çevrimiçi' : 'Çevrimdışı'}
+            </span>
+            {/* Sync durumu */}
+            <span style={{
+              fontSize: '0.6rem', fontWeight: 600,
+              color: syncStatus === 'saved' ? '#10b981'
+                : syncStatus === 'saving' ? '#f59e0b'
+                : syncStatus === 'error' ? '#ef4444'
+                : '#1e3a5f',
+            }}>
+              {syncStatus === 'saving' ? '⟳ Senkronize…'
+                : syncStatus === 'saved' ? `✓ ${lastSyncTime}`
+                : syncStatus === 'error' ? '✗ Hata'
+                : syncStatus === 'loading' ? '↓ Yüklüyor'
+                : ''}
+            </span>
           </div>
-          <div style={{ color: '#0f2235', fontSize: '0.6rem', textAlign: 'center' }}>🔒 localStorage · Veriler yerel ve güvenli</div>
+          <div style={{ color: '#0f2235', fontSize: '0.58rem', textAlign: 'center' }}>🔒 Firebase & localStorage · Güvenli</div>
         </div>
       </aside>
 
       {/* MAIN */}
-      <div style={{ width: isMobile ? '100vw' : 'calc(100vw - 228px)', marginLeft: isMobile ? 0 : 228, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left 0.25s ease', boxSizing: 'border-box' }}>
+      <div style={{ width: isMobile ? '100vw' : 'calc(100vw - 236px)', marginLeft: isMobile ? 0 : 236, display: 'flex', flexDirection: 'column', minHeight: '100vh', transition: 'margin-left 0.28s cubic-bezier(0.22,1,0.36,1)', boxSizing: 'border-box' }}>
         {/* HEADER */}
-        <header style={{ background: 'rgba(6,16,31,0.97)', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: isMobile ? '10px 14px' : '11px 24px', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, position: 'sticky', top: 0, zIndex: 90, backdropFilter: 'blur(12px)' }}>
+        <header style={{
+          background: 'rgba(5,12,26,0.96)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          padding: isMobile ? '10px 14px' : '10px 22px',
+          display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12,
+          position: 'sticky', top: 0, zIndex: 90,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        }}>
           {isMobile && (
-            <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 8, color: '#f1f5f9', padding: '8px 10px', cursor: 'pointer', fontSize: '1.1rem', flexShrink: 0 }}>☰</button>
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 9, color: '#f1f5f9', padding: '8px 10px', cursor: 'pointer', fontSize: '1.1rem', flexShrink: 0, transition: 'all 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,87,34,0.1)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+            >☰</button>
           )}
-          <div style={{ minWidth: isMobile ? 0 : 130, flex: isMobile ? 1 : undefined }}>
-            <h1 style={{ fontWeight: 800, fontSize: isMobile ? '0.9rem' : '1.02rem', color: '#f1f5f9', margin: 0, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{TABS.find(t => t.id === activeTab)?.icon} {TABS.find(t => t.id === activeTab)?.label}</h1>
+          {/* Sayfa başlığı */}
+          <div style={{ minWidth: isMobile ? 0 : 140, flex: isMobile ? 1 : undefined }}>
+            <h1 style={{
+              fontWeight: 800, fontSize: isMobile ? '0.9rem' : '1rem',
+              color: '#f1f5f9', margin: 0, letterSpacing: '-0.015em',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              display: 'flex', alignItems: 'center', gap: 7,
+            }}>
+              <span style={{
+                width: 28, height: 28, background: (() => {
+                  const gc = GROUP_COLORS[TABS.find(t => t.id === activeTab)?.group || 'Sistem'];
+                  return gc.bg;
+                })(),
+                borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.9rem', flexShrink: 0,
+              }}>{TABS.find(t => t.id === activeTab)?.icon}</span>
+              {TABS.find(t => t.id === activeTab)?.label}
+            </h1>
           </div>
           {!isMobile && <GlobalSearch onNavigate={navigate} db={db} />}
-          <div style={{ display: 'flex', gap: isMobile ? 4 : 8, alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: isMobile ? 4 : 6, alignItems: 'center', flexShrink: 0 }}>
+            {/* Kısayollar */}
             {!isMobile && (
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 3 }}>
                 {[{ k: '⌘1', t: 'dashboard', label: 'Özet' }, { k: '⌘2', t: 'products', label: 'Ürün' }, { k: '⌘3', t: 'sales', label: 'Satış' }, { k: '⌘4', t: 'kasa', label: 'Kasa' }].map(s => (
-                  <button key={s.k} onClick={() => navigate(s.t as TabId)} title={`${s.label} (Ctrl+${s.k.replace('⌘', '')})`} style={{ background: activeTab === s.t ? 'rgba(255,87,34,0.15)' : 'rgba(255,255,255,0.04)', border: `1px solid ${activeTab === s.t ? 'rgba(255,87,34,0.25)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 6, color: activeTab === s.t ? '#ff7043' : '#334155', padding: '4px 8px', cursor: 'pointer', fontSize: '0.68rem', fontWeight: 700, transition: 'all 0.15s' }}>
-                    {s.k}
-                  </button>
+                  <button
+                    key={s.k}
+                    onClick={() => navigate(s.t as TabId)}
+                    title={`${s.label} (Ctrl+${s.k.replace('⌘', '')})`}
+                    style={{
+                      background: activeTab === s.t ? 'rgba(255,87,34,0.14)' : 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${activeTab === s.t ? 'rgba(255,87,34,0.3)' : 'rgba(255,255,255,0.06)'}`,
+                      borderRadius: 6, color: activeTab === s.t ? '#ff7043' : '#2d4059',
+                      padding: '4px 7px', cursor: 'pointer', fontSize: '0.67rem', fontWeight: 700,
+                      transition: 'all 0.15s',
+                      boxShadow: activeTab === s.t ? '0 0 10px rgba(255,87,34,0.2)' : 'none',
+                    }}
+                    onMouseEnter={e => { if (activeTab !== s.t) (e.currentTarget.style.color = '#64748b'); }}
+                    onMouseLeave={e => { if (activeTab !== s.t) (e.currentTarget.style.color = '#2d4059'); }}
+                  >{s.k}</button>
                 ))}
               </div>
             )}
-            {badges.monitor > 0 && <button onClick={() => navigate('monitor')} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#f87171', padding: '5px 11px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>🔔 {badges.monitor}</button>}
-            {!isMobile && badges.products > 0 && <button onClick={() => navigate('products')} style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, color: '#fca5a5', padding: '5px 11px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>📦 {badges.products}</button>}
-            <button onClick={exportJSON} title="Hızlı Yedek Al" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, color: '#60a5fa', padding: '5px 11px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>{isMobile ? '💾' : '💾 Yedek'}</button>
-            {!isMobile && <div style={{ color: '#1e3a5f', fontSize: '0.75rem', fontWeight: 500, whiteSpace: 'nowrap' }}>{new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}</div>}
+            {/* Uyarı bildirimleri */}
+            {badges.monitor > 0 && (
+              <button
+                onClick={() => navigate('monitor')}
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#f87171', padding: '5px 10px', cursor: 'pointer', fontSize: '0.77rem', fontWeight: 700, transition: 'all 0.15s', animation: 'badgePulse 2.5s ease-in-out infinite' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.18)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+              >🔔 {badges.monitor}</button>
+            )}
+            {!isMobile && badges.products > 0 && (
+              <button
+                onClick={() => navigate('products')}
+                style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.14)', borderRadius: 8, color: '#fca5a5', padding: '5px 10px', cursor: 'pointer', fontSize: '0.77rem', fontWeight: 600, transition: 'all 0.15s' }}
+              >📦 {badges.products}</button>
+            )}
+            {/* Sync göstergesi */}
+            {!isMobile && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '4px 9px', borderRadius: 7,
+                background: syncStatus === 'saving' ? 'rgba(245,158,11,0.08)'
+                  : syncStatus === 'error' ? 'rgba(239,68,68,0.08)'
+                  : 'transparent',
+                border: syncStatus === 'saving' ? '1px solid rgba(245,158,11,0.15)'
+                  : syncStatus === 'error' ? '1px solid rgba(239,68,68,0.15)'
+                  : '1px solid transparent',
+                transition: 'all 0.3s',
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
+                  background: syncStatus === 'saved' ? '#10b981'
+                    : syncStatus === 'saving' ? '#f59e0b'
+                    : syncStatus === 'error' ? '#ef4444'
+                    : syncStatus === 'loading' ? '#60a5fa'
+                    : '#1e3a5f',
+                  boxShadow: syncStatus === 'saved' ? '0 0 6px #10b981'
+                    : syncStatus === 'saving' ? '0 0 6px #f59e0b'
+                    : 'none',
+                  animation: syncStatus === 'saving' ? 'onlinePulse 1s ease-in-out infinite' : 'none',
+                }} />
+                <span style={{
+                  fontSize: '0.67rem', fontWeight: 600,
+                  color: syncStatus === 'saved' ? '#10b981'
+                    : syncStatus === 'saving' ? '#f59e0b'
+                    : syncStatus === 'error' ? '#ef4444'
+                    : '#1e3a5f',
+                }}>
+                  {syncStatus === 'saving' ? 'Kaydediliyor'
+                    : syncStatus === 'saved' ? `Senkron ${lastSyncTime}`
+                    : syncStatus === 'error' ? 'Sync Hatası'
+                    : syncStatus === 'loading' ? 'Yükleniyor'
+                    : 'Firebase'}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={exportJSON}
+              title="Hızlı Yedek Al"
+              style={{ background: 'rgba(59,130,246,0.09)', border: '1px solid rgba(59,130,246,0.18)', borderRadius: 8, color: '#60a5fa', padding: '5px 10px', cursor: 'pointer', fontSize: '0.77rem', fontWeight: 700, transition: 'all 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.18)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.09)')}
+            >{isMobile ? '💾' : '💾 Yedek'}</button>
+            {!isMobile && (
+              <div style={{ color: '#1e3a5f', fontSize: '0.73rem', fontWeight: 500, whiteSpace: 'nowrap', padding: '0 4px' }}>
+                {new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+            )}
           </div>
         </header>
 
         {/* CONTENT */}
-        <main style={{ flex: 1, padding: isMobile ? '14px 10px' : '22px 24px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+        <main key={activeTab} className="page-enter" style={{ flex: 1, padding: isMobile ? '14px 10px' : '20px 22px', boxSizing: 'border-box', overflowX: 'hidden' }}>
           {activeTab === 'dashboard' && <Dashboard db={db} onTabChange={(tab) => navigate(tab as TabId)} />}
           {activeTab === 'products' && <Products db={db} save={save} />}
           {activeTab === 'sales' && <Sales db={db} save={save} />}
@@ -576,21 +855,47 @@ function AppContent() {
         body { background: #070e1c; }
         input, select, textarea, button { outline: none; font-family: inherit; }
         input:focus, select:focus, textarea:focus { border-color: rgba(255,87,34,0.5) !important; box-shadow: 0 0 0 3px rgba(255,87,34,0.12) !important; }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        [data-sonner-toast][data-type='success'] { border-color: rgba(16,185,129,0.35) !important; background: linear-gradient(135deg, rgba(16,185,129,0.12), #0c1628) !important; }
-        [data-sonner-toast][data-type='error'] { border-color: rgba(239,68,68,0.35) !important; background: linear-gradient(135deg, rgba(239,68,68,0.12), #0c1628) !important; }
-        [data-sonner-toast][data-type='warning'] { border-color: rgba(245,158,11,0.35) !important; background: linear-gradient(135deg, rgba(245,158,11,0.10), #0c1628) !important; }
-        [data-sonner-toast][data-type='info'] { border-color: rgba(99,102,241,0.35) !important; background: linear-gradient(135deg, rgba(99,102,241,0.10), #0c1628) !important; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.13); }
+        nav::-webkit-scrollbar { width: 0; }
+
+        /* ── Animasyonlar ── */
+        @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes scaleIn  { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+        @keyframes badgePulse {
+          0%,100% { box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+          50%      { box-shadow: 0 0 14px rgba(239,68,68,0.7); }
+        }
+        @keyframes onlinePulse {
+          0%,100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.6; transform: scale(0.8); }
+        }
+        @keyframes sidebarLogoPulse {
+          0%,100% { box-shadow: 0 4px 20px rgba(255,87,34,0.45), 0 0 0 6px rgba(255,87,34,0.06); }
+          50%      { box-shadow: 0 6px 28px rgba(255,87,34,0.65), 0 0 0 8px rgba(255,87,34,0.1); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Sayfa geçiş animasyonu */
+        .page-enter { animation: scaleIn 0.22s cubic-bezier(0.22,1,0.36,1); }
+
+        /* Sonner toast özelleştirmeleri */
+        [data-sonner-toast][data-type='success'] { border-color: rgba(16,185,129,0.35) !important; background: linear-gradient(135deg, rgba(16,185,129,0.1), #0a1525) !important; }
+        [data-sonner-toast][data-type='error']   { border-color: rgba(239,68,68,0.35)  !important; background: linear-gradient(135deg, rgba(239,68,68,0.1),  #0a1525) !important; }
+        [data-sonner-toast][data-type='warning'] { border-color: rgba(245,158,11,0.35) !important; background: linear-gradient(135deg, rgba(245,158,11,0.08), #0a1525) !important; }
+        [data-sonner-toast][data-type='info']    { border-color: rgba(99,102,241,0.35) !important; background: linear-gradient(135deg, rgba(99,102,241,0.1),  #0a1525) !important; }
         [data-sonner-toaster] [data-sonner-toast] { min-width: 280px !important; max-width: 380px !important; }
         [data-sonner-toast] [data-icon] { font-size: 1.1rem !important; }
-        tr:hover td { background: rgba(255,255,255,0.02) !important; transition: background 0.15s; }
+
+        /* Tablo satırı hover */
+        tr:hover td { background: rgba(255,255,255,0.02) !important; transition: background 0.12s; }
         button:active { transform: scale(0.97) !important; }
-        nav::-webkit-scrollbar { width: 0; }
+
         @media (max-width: 768px) {
           table { display: block; overflow-x: auto; }
           .stat-grid { grid-template-columns: 1fr 1fr !important; }
@@ -601,13 +906,6 @@ function AppContent() {
         @media print {
           body { background: #fff !important; }
           aside, header, .fab-container, [data-sonner-toaster] { display: none !important; }
-          div[style*="position: fixed"][style*="zIndex: 9000"] > div { 
-            position: static !important; max-height: none !important; max-width: none !important;
-            box-shadow: none !important; border: none !important; background: #fff !important;
-          }
-          div[style*="position: fixed"][style*="zIndex: 9000"] {
-            position: static !important; background: transparent !important; backdrop-filter: none !important;
-          }
           * { color: #000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
       `}</style>

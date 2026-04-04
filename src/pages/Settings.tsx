@@ -7,7 +7,33 @@ import type { SoundSettings, SoundTheme, SoundType } from '@/hooks/useSoundFeedb
 import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
-import { getStoredHash, hashPass } from '@/components/LoginScreen';
+import { hashPass } from '@/components/LoginScreen';
+
+// Firebase auth config (parola Settings'ten de değiştirilebilir)
+const FIREBASE_PROJECT = 'pars-4850c';
+const FIREBASE_API_KEY = 'AIzaSyBL2_YIVMPBwojAfK7pzd2Eg5AG1sUyfig';
+const FIREBASE_AUTH_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/auth?key=${FIREBASE_API_KEY}`;
+
+async function fetchCurrentHash(): Promise<string | null> {
+  try {
+    const res = await fetch(FIREBASE_AUTH_URL, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.fields?.hash?.stringValue ?? null;
+  } catch { return null; }
+}
+
+async function updateHashInFirebase(hash: string): Promise<boolean> {
+  try {
+    const res = await fetch(FIREBASE_AUTH_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { hash: { stringValue: hash }, updatedAt: { stringValue: new Date().toISOString() } } }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch { return false; }
+}
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
@@ -247,18 +273,20 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
   const [showOld, setShowOld] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
-  const PASS_KEY = 'sobaYonetim_appPass';
-
   const handleChange = async () => {
     if (!oldPass) { showToast('Mevcut parolayı girin!', 'error'); return; }
-    if (newPass.length < 4) { showToast('Yeni parola en az 4 karakter olmalı!', 'error'); return; }
+    if (newPass.length < 6) { showToast('Yeni parola en az 6 karakter olmalı!', 'error'); return; }
     if (newPass !== newPass2) { showToast('Yeni parolalar eşleşmiyor!', 'error'); return; }
 
     setLoading(true);
+    const currentFirebaseHash = await fetchCurrentHash();
+    if (!currentFirebaseHash) {
+      showToast('Firebase bağlantısı kurulamadı!', 'error');
+      setLoading(false);
+      return;
+    }
     const oldHash = await hashPass(oldPass);
-    const stored = getStoredHash();
-
-    if (oldHash !== stored) {
+    if (oldHash !== currentFirebaseHash) {
       showToast('Mevcut parola yanlış!', 'error');
       setLoading(false);
       setOldPass('');
@@ -266,12 +294,16 @@ function SecurityPanel({ showToast }: { showToast: (msg: string, type?: 'success
     }
 
     const newHash = await hashPass(newPass);
-    localStorage.setItem(PASS_KEY, newHash);
-    setOldPass('');
-    setNewPass('');
-    setNewPass2('');
+    const saved = await updateHashInFirebase(newHash);
+    if (saved) {
+      // Oturum cache'ini güncelle
+      try { sessionStorage.setItem('sobaYonetim_hc', newHash); } catch { /* ignore */ }
+      setOldPass(''); setNewPass(''); setNewPass2('');
+      showToast('Parola başarıyla Firebase\'e kaydedildi!', 'success');
+    } else {
+      showToast('Firebase kayıt hatası — internet bağlantınızı kontrol edin!', 'error');
+    }
     setLoading(false);
-    showToast('Parola başarıyla değiştirildi!', 'success');
   };
 
   return (
