@@ -199,8 +199,20 @@ export function useDB() {
 
   const logActivity = useCallback((action: string, detail?: string) => {
     save(prev => {
-      const log = [{ id: genId(), action, detail: detail || '', time: new Date().toISOString() }, ...(prev._activityLog || [])].slice(0, 50);
+      const log = [{ id: genId(), action, detail: detail || '', time: new Date().toISOString() }, ...(prev._activityLog || [])].slice(0, 200);
       return { ...prev, _activityLog: log };
+    });
+  }, [save]);
+
+  // Otomatik aktivite loglayan save wrapper'ı
+  const saveWithLog = useCallback((updater: (prev: DB) => DB, action?: string, detail?: string) => {
+    save(prev => {
+      let next = updater(prev);
+      if (action) {
+        const log = [{ id: genId(), action, detail: detail || '', time: new Date().toISOString() }, ...(next._activityLog || [])].slice(0, 200);
+        next = { ...next, _activityLog: log };
+      }
+      return next;
     });
   }, [save]);
 
@@ -255,5 +267,5 @@ export function useDB() {
     return db.kasa.filter(k => !k.deleted).reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
   }, [db.kasa]);
 
-  return { db, save, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa };
+  return { db, save, saveWithLog, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa };
 }
