@@ -22,6 +22,7 @@ import Fatura from '@/pages/Fatura';
 import Entegrasyonlar from '@/pages/Entegrasyonlar';
 import Butce from '@/pages/Butce';
 import KontrolHalkasi from '@/pages/KontrolHalkasi';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
 
@@ -627,6 +628,7 @@ export default function App() {
   }
 
   return (
+    <ErrorBoundary>
     <ConfirmProvider>
       <AppContent />
       <Toaster
@@ -656,6 +658,7 @@ export default function App() {
         }}
       />
     </ConfirmProvider>
+    </ErrorBoundary>
   );
 }
 
