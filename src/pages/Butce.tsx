@@ -34,6 +34,8 @@ export default function Butce({ db, save }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Omit<BudgetCategory, 'id'>>({ name: '', icon: '📋', monthlyLimit: 0, color: '#64748b', kasaCategories: [] });
 
+  const budgets: BudgetCategory[] = db.budgets || [];
+
   const yearlyData = useMemo(() => {
     return Array.from({ length: 12 }, (_, m) => {
       const start = new Date(year, m, 1).toISOString();

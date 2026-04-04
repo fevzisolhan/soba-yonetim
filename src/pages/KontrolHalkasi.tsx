@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { formatMoney } from '@/lib/utils-tr';
+import { quickHealthCheck, runHealthCheck, type HealthReport, type HealthStatus } from '@/lib/healthCheck';
 import type { DB } from '@/types';
 
 interface Props { db: DB }
@@ -61,7 +62,37 @@ function kasaBal(kasa: DB['kasa'], kasaId: string): number {
     .reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
 }
 
+const STATUS_COLORS: Record<HealthStatus, { bg: string; border: string; text: string; label: string }> = {
+  healthy:  { bg: 'rgba(34,197,94,0.08)',  border: 'rgba(34,197,94,0.3)',  text: '#22c55e', label: 'Sağlıklı' },
+  degraded: { bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.3)', text: '#f59e0b', label: 'Düşük' },
+  critical: { bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.3)',  text: '#ef4444', label: 'Kritik' },
+};
+
 export default function KontrolHalkasi({ db }: Props) {
+  const [healthReport, setHealthReport] = useState<HealthReport | null>(() => {
+    const quick = quickHealthCheck(db as unknown as Record<string, unknown>);
+    return { ...quick, duration: 0 };
+  });
+  const [fullChecking, setFullChecking] = useState(false);
+
+  // Sayfa açılınca tam sağlık kontrolü yap (Firebase dahil)
+  useEffect(() => {
+    setFullChecking(true);
+    runHealthCheck(db as unknown as Record<string, unknown>).then(r => {
+      setHealthReport(r);
+      setFullChecking(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const recheck = useCallback(() => {
+    setFullChecking(true);
+    runHealthCheck(db as unknown as Record<string, unknown>).then(r => {
+      setHealthReport(r);
+      setFullChecking(false);
+    });
+  }, [db]);
+
   const m = useMemo(() => {
     const nakit     = kasaBal(db.kasa, 'nakit');
     const banka     = kasaBal(db.kasa, 'banka');
@@ -245,6 +276,83 @@ export default function KontrolHalkasi({ db }: Props) {
           })}
         </div>
       </div>
+
+      {/* ── Sistem Sağlık Paneli ─────────────────────────────────────── */}
+      {healthReport && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+            <h3 style={{ color: '#f1f5f9', fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>🏥 Sistem Sağlığı</h3>
+            {/* Skor */}
+            <div style={{
+              padding: '4px 14px', borderRadius: 20,
+              background: STATUS_COLORS[healthReport.overall].bg,
+              border: `1px solid ${STATUS_COLORS[healthReport.overall].border}`,
+              color: STATUS_COLORS[healthReport.overall].text,
+              fontWeight: 800, fontSize: '0.85rem',
+            }}>
+              {healthReport.score}/100 — {STATUS_COLORS[healthReport.overall].label}
+            </div>
+            <button
+              onClick={recheck}
+              disabled={fullChecking}
+              style={{
+                padding: '5px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)', color: fullChecking ? '#334155' : '#94a3b8',
+                cursor: fullChecking ? 'wait' : 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                transition: 'all 0.15s', marginLeft: 'auto',
+              }}
+              onMouseEnter={e => { if (!fullChecking) (e.currentTarget.style.background = 'rgba(255,255,255,0.1)'); }}
+              onMouseLeave={e => { (e.currentTarget.style.background = 'rgba(255,255,255,0.05)'); }}
+            >
+              {fullChecking ? '⟳ Kontrol ediliyor…' : '🔄 Yeniden Kontrol'}
+            </button>
+          </div>
+
+          {/* Metrikler */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10 }}>
+            {healthReport.metrics.map(metric => {
+              const c = STATUS_COLORS[metric.status];
+              return (
+                <div key={metric.id} style={{
+                  background: c.bg, border: `1px solid ${c.border}`,
+                  borderRadius: 12, padding: '12px 14px',
+                  transition: 'all 0.2s',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.text, flexShrink: 0, boxShadow: `0 0 6px ${c.text}` }} />
+                    <span style={{ color: '#94a3b8', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{metric.name}</span>
+                    <span style={{ marginLeft: 'auto', color: c.text, fontSize: '0.68rem', fontWeight: 700 }}>{c.label}</span>
+                  </div>
+                  <div style={{ color: c.text, fontSize: '1.1rem', fontWeight: 900, lineHeight: 1 }}>
+                    {metric.value}{metric.unit ? <span style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: 2 }}>{metric.unit}</span> : ''}
+                  </div>
+                  {metric.detail && (
+                    <div style={{ color: '#475569', fontSize: '0.68rem', marginTop: 4, lineHeight: 1.4 }}>{metric.detail}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Öneriler */}
+          {healthReport.recommendations.length > 0 && (
+            <div style={{ marginTop: 14, background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 12, padding: '12px 16px' }}>
+              <div style={{ color: '#f59e0b', fontWeight: 700, fontSize: '0.78rem', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⚠️ Öneriler</div>
+              {healthReport.recommendations.map((rec, i) => (
+                <div key={i} style={{ color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.5, display: 'flex', gap: 8, marginBottom: i < healthReport.recommendations.length - 1 ? 6 : 0 }}>
+                  <span style={{ color: '#f59e0b', flexShrink: 0 }}>›</span>
+                  {rec}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ color: '#1e3a5f', fontSize: '0.62rem', marginTop: 8, textAlign: 'right' }}>
+            Son kontrol: {new Date(healthReport.ts).toLocaleTimeString('tr-TR')}
+            {healthReport.duration > 0 && ` · ${healthReport.duration}ms`}
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes halka-pulse {

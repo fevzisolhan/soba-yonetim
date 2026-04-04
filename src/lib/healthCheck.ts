@@ -245,9 +245,9 @@ function buildRecommendations(metrics: HealthMetric[]): string[] {
     if (m.id === 'firebase' && m.status === 'critical') recs.push('Firebase erişilemiyor — internet bağlantınızı kontrol edin veya Firebase proje ayarlarını gözden geçirin.');
     if (m.id === 'localStorage' && m.status === 'critical') recs.push('Yerel depolama dolmak üzere — JSON yedek alıp eski verilerinizi temizleyin.');
     if (m.id === 'localStorage' && m.status === 'degraded') recs.push('Yerel depolama %70\'in üzerinde — yakın zamanda bir yedek almanız önerilir.');
-    if (m.id === 'memory' && m.status !== 'healthy') recs.push('Bellek kullanımı yüksek — diğer tarayıcı sekmelerini kapatmayı deneyin.');
+    if (m.id === 'memory') recs.push('Bellek kullanımı yüksek — diğer tarayıcı sekmelerini kapatmayı deneyin.');
     if (m.id === 'network' && m.status === 'critical') recs.push('İnternet bağlantısı yok — uygulama çevrimdışı modda çalışıyor, veriler yerel olarak korunuyor.');
-    if (m.id === 'dbIntegrity' && m.status !== 'healthy') recs.push('Veri bütünlüğünde sorun tespit edildi — Ayarlar > Veriyi Onar seçeneğini deneyin.');
+    if (m.id === 'dbIntegrity') recs.push('Veri bütünlüğünde sorun tespit edildi — Ayarlar > Veriyi Onar seçeneğini deneyin.');
     if (m.id === 'syncLag' && m.status === 'critical') recs.push('Senkronizasyon 30 dakikadan uzun süredir yapılmamış — Firebase bağlantısını kontrol edin.');
   }
   return recs;

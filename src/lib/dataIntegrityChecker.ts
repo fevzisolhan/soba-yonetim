@@ -156,8 +156,9 @@ export function runIntegrityCheck(db: DB): IntegrityIssue[] {
 
   // 6a. Taksit toplamı fatura tutarıyla eşleşmiyor
   activeInvoices.forEach(inv => {
-    if (inv.installments && inv.installments.length > 0) {
-      const taksitToplam = inv.installments.reduce((s, t) => s + t.amount, 0);
+    const invInstallments = (db.installments || []).filter((t: { invoiceId?: string }) => t.invoiceId === inv.id);
+    if (invInstallments.length > 0) {
+      const taksitToplam = invInstallments.reduce((s: number, t: { amount: number }) => s + t.amount, 0);
       if (Math.abs(taksitToplam - inv.total) > 0.01) {
         addIssue('critical', 'fatura', 'Taksit-fatura uyumsuzluğu', `Fatura #${inv.invoiceNo || inv.id} toplam: ${formatMoney(inv.total)}, taksitler: ${formatMoney(taksitToplam)}.`, 'Taksit tutarlarını düzeltin.', [inv.id]);
       }

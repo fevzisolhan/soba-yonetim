@@ -115,3 +115,12 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
 function setColumnWidths(ws: XLSX.WorkSheet, widths: number[]) {
   ws['!cols'] = widths.map(w => ({ wch: w }));
 }
+
+
+/** Düz nesne dizisini Excel olarak indir (Reports sayfası için) */
+export function exportArrayToExcel(data: Record<string, unknown>[], filename: string): void {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Rapor');
+  XLSX.writeFile(wb, `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}

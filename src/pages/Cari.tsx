@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
-import { exportToExcel } from '@/lib/excelExport';
+import { exportToExcel, exportArrayToExcel } from '@/lib/excelExport';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
 import { normalizeTR, similarity, isExactMatch } from '@/lib/similarity';
 import type { DB, Cari as CariType } from '@/types';
@@ -164,7 +164,7 @@ export default function Cari({ db, save }: Props) {
             Adres: c.address || '',
             Not: (c as any).note || '',
           }));
-          exportToExcel(rows, 'cari-listesi');
+          exportArrayToExcel(rows, 'cari-listesi');
           showToast('Ekstre indirildi!', 'success');
         }} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 10, color: '#10b981', padding: '10px 16px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📥 Ekstre</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9' }} />
@@ -327,7 +327,7 @@ export default function Cari({ db, save }: Props) {
                 ...detailSales.map(s => ({ Tarih: formatDate(s.createdAt), İşlem: 'Satış', Tutar: s.total, Açıklama: s.productName, Ödeme: s.payment })),
                 ...detailKasa.map(k => ({ Tarih: formatDate(k.createdAt), İşlem: k.type === 'gelir' ? 'Tahsilat' : 'Ödeme', Tutar: k.type === 'gelir' ? k.amount : -k.amount, Açıklama: k.description || '', Ödeme: k.kasa })),
               ].sort((a, b) => a.Tarih.localeCompare(b.Tarih));
-              exportToExcel(rows, `ekstre-${detail.name}`);
+              exportArrayToExcel(rows, `ekstre-${detail.name}`);
               showToast('Ekstre indirildi!', 'success');
             }} style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, color: '#10b981', padding: '6px 14px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, marginLeft: 'auto' }}>
               📥 Ekstre İndir

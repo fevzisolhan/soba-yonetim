@@ -75,7 +75,8 @@ function saveSoundSettingsToStorage(settings: SoundSettings) {
 }
 
 export default function Settings({ db, save, exportJSON, importJSON }: Props) {
-  const { showToast } = useToast();
+  const { showToast: _showToast } = useToast();
+  const showToast = _showToast as (m: string, t?: string) => void;
   const { showConfirm } = useConfirm();
   const { playSound } = useSoundFeedback();
   const [company, setCompany] = useState({ ...db.company });

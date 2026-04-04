@@ -104,6 +104,7 @@ export interface Cari {
   email?: string;
   address?: string;
   balance: number;
+  note?: string;
   lastTransaction?: string;
   deleted?: boolean;
   createdAt: string;

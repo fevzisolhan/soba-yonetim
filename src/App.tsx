@@ -22,6 +22,8 @@ import Fatura from '@/pages/Fatura';
 import Entegrasyonlar from '@/pages/Entegrasyonlar';
 import Butce from '@/pages/Butce';
 import KontrolHalkasi from '@/pages/KontrolHalkasi';
+import Pelet from '@/pages/Pelet';
+import BoruTed from '@/pages/BoruTed';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
@@ -44,6 +46,8 @@ const TABS = [
   { id: 'sales', label: 'Satış', icon: '🛒', group: 'Ana' },
   { id: 'fatura', label: 'Fatura', icon: '🧾', group: 'Ana' },
   { id: 'suppliers', label: 'Tedarikçi', icon: '🏭', group: 'Tedarik' },
+  { id: 'pelet', label: 'Pelet', icon: '🪵', group: 'Tedarik' },
+  { id: 'boruTed', label: 'Boru Tedarik', icon: '🔩', group: 'Tedarik' },
   { id: 'cari', label: 'Cari', icon: '👤', group: 'Finans' },
   { id: 'kasa', label: 'Kasa', icon: '💰', group: 'Finans' },
   { id: 'butce', label: 'Bütçe', icon: '📊', group: 'Finans' },
@@ -830,6 +834,8 @@ function AppContent() {
           {activeTab === 'sales' && <Sales db={db} save={save} />}
           {activeTab === 'fatura' && <Fatura db={db} save={save} />}
           {activeTab === 'suppliers' && <Suppliers db={db} save={save} />}
+          {activeTab === 'pelet' && <Pelet db={db} save={save} />}
+          {activeTab === 'boruTed' && <BoruTed db={db} save={save} />}
           {activeTab === 'cari' && <Cari db={db} save={save} />}
           {activeTab === 'kasa' && <Kasa db={db} save={save} />}
           {activeTab === 'butce' && <Butce db={db} save={save} />}

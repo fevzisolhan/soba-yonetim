@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, AreaChart, Area } from 'recharts';
 import { formatMoney, formatDate } from '@/lib/utils-tr';
-import { exportToExcel } from '@/lib/excelExport';
+import { exportArrayToExcel as exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 
 interface Props { db: DB; }
